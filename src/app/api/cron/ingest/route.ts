@@ -1,3 +1,15 @@
+export const runtime = 'nodejs';
+export const maxDuration = 60;
+
+console.log('route loaded');
+
+export const GET = async () => {
+  console.log('handler entered');
+  return new Response('ok');
+}
+
+/*
+
 import { NextResponse } from 'next/server';
 import { connectDb, closeDb } from '@/src/lib/db';
 import { ingestNowMeasurements, runDiscoverIfNeeded } from '@/scripts/ingest/chmi';
@@ -41,3 +53,4 @@ export const GET= async (req: Request) => {
     return NextResponse.json({ ok: false, error: String(e?.message ?? e) }, { status: 500 });
   }
 }
+*/

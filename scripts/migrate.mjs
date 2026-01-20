@@ -1,9 +1,4 @@
 #!/usr/bin/env node
-
-import { config } from 'dotenv-safe';
-
-config({ allowEmptyValues: true });
-
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -32,8 +27,8 @@ const main = async () => {
 
     await db.query(`
             CREATE TABLE IF NOT EXISTS schema_migrations (
-                                                             filename TEXT PRIMARY KEY,
-                                                             applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+              filename TEXT PRIMARY KEY,
+              applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         `);
 

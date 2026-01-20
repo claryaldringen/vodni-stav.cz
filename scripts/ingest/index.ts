@@ -1,5 +1,3 @@
-import 'dotenv-safe/config';
-
 import { connectDb, closeDb } from '@/src/lib/db';
 import { ingestNowMeasurements, runDiscoverIfNeeded } from './chmi.js';
 import { recordRunFinish, recordRunStart } from '@/scripts/ingest/utils';

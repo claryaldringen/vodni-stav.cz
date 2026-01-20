@@ -17,8 +17,7 @@ const fetchWithTimeout = async (url: string, ms: number) => {
   } finally {
     clearTimeout(t);
   }
-}
-
+};
 
 const parseIndexHtmlForJsonFiles = (html: string): string[] => {
   const out: string[] = [];
@@ -325,6 +324,8 @@ export const ingestNowMeasurements = async (
   let rowsUpserted = 0;
   let failedFiles = 0;
   const failed: FailedFile[] = [];
+
+  console.log('stations', stationExternalIds.length, 'concurrency', concurrency);
 
   const results = await mapWithConcurrency(stationExternalIds, concurrency, async (extId) => {
     const url = `${baseUrl}${extId}.json`;

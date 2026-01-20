@@ -9,6 +9,17 @@ const sleep = (ms: number) => {
   return new Promise((r) => setTimeout(r, ms));
 };
 
+const fetchWithTimeout = async (url: string, ms: number) => {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { signal: ctrl.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+
 const parseIndexHtmlForJsonFiles = (html: string): string[] => {
   const out: string[] = [];
   const re = /href="([^"]+\.json)"/g;
@@ -22,7 +33,7 @@ export const discoverStationsFromNowIndex = async (
 ): Promise<{ discoveredStations: number; totalInIndex: number }> => {
   const indexUrl = process.env.CHMI_NOW_INDEX ?? DEFAULT_NOW_INDEX;
 
-  const res = await fetch(indexUrl);
+  const res = await fetchWithTimeout(indexUrl, 8000);
   if (!res.ok) throw new Error(`now index fetch failed: ${res.status} ${res.statusText}`);
 
   const html = await res.text();
@@ -134,7 +145,7 @@ export const refreshMetadata = async (
 ): Promise<{ stationsUpserted: number; riversUpserted: number }> => {
   const url = process.env.CHMI_META1 ?? DEFAULT_META1;
 
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url, 8000);
   if (!res.ok) throw new Error(`meta1 fetch failed: ${res.status} ${res.statusText}`);
   const meta = await res.json();
 
@@ -319,7 +330,7 @@ export const ingestNowMeasurements = async (
     const url = `${baseUrl}${extId}.json`;
 
     try {
-      const res = await fetch(url);
+      const res = await fetchWithTimeout(url, 8000);
       if (!res.ok) {
         failedFiles += 1;
         failed.push({

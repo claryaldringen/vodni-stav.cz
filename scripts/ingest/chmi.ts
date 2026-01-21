@@ -5,10 +5,6 @@ import { recordRunFinish, recordRunStart } from '@/scripts/ingest/utils';
 const DEFAULT_META1 = 'https://opendata.chmi.cz/hydrology/now/metadata/meta1.json';
 const DEFAULT_NOW_INDEX = 'https://opendata.chmi.cz/hydrology/now/data/';
 
-const sleep = (ms: number) => {
-  return new Promise((r) => setTimeout(r, ms));
-};
-
 const fetchWithTimeout = async (url: string, ms: number) => {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), ms);
@@ -95,7 +91,7 @@ const shouldDiscoverStations = async (db: Db): Promise<boolean> => {
   const last: string | null = lastRes.rows[0]?.started_at ?? null;
   if (!last) return true;
 
-  // 24 hodin (muzes zmenit na 6h, 12h, ...)
+  // 24 hodin
   const lastMs = new Date(last).getTime();
   const nowMs = Date.now();
   return nowMs - lastMs > 24 * 60 * 60 * 1000;
@@ -135,7 +131,6 @@ const getOnlyStationsSet = (): Set<string> | null => {
 
 /**
  * meta1.json (header/values) -> river + station
- * (povodí tu zatím není, takže basin_id necháváme NULL)
  *
  * POZOR: st.id z extractorů je EXTERNÍ ID (objID) => ukládáme do station.id_external
  */
@@ -243,7 +238,9 @@ const mergeTimeseries = (objListItem: any): MeasurementPoint[] => {
     const key = series.tsConID; // 'H' nebo 'Q'
     for (const p of series.tsData ?? []) {
       const ts: string = p.dt;
-      if (!byTs.has(ts)) byTs.set(ts, {});
+      if (!byTs.has(ts)) {
+        byTs.set(ts, {});
+      }
       const cur = byTs.get(ts)!;
       if (key === 'H') cur.H = p.value;
       if (key === 'Q') cur.Q = p.value;
@@ -265,45 +262,6 @@ const mergeTimeseries = (objListItem: any): MeasurementPoint[] => {
   return rows;
 };
 
-const mapWithConcurrency = async <T, R>(
-  items: T[],
-  concurrency: number,
-  fn: (item: T, index: number) => Promise<R>,
-): Promise<R[]> => {
-  const out: R[] = new Array(items.length);
-  let i = 0;
-
-  const workers = Array.from({ length: Math.max(1, concurrency) }, async () => {
-    while (true) {
-      const idx = i++;
-      if (idx >= items.length) return;
-      out[idx] = await fn(items[idx], idx);
-    }
-  });
-
-  await Promise.all(workers);
-  return out;
-};
-
-const getFetchConcurrency = (): number => {
-  const raw = (process.env.FETCH_CONCURRENCY ?? '').trim();
-  const n = raw ? Number(raw) : 8;
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 8;
-};
-
-const getFetchDelayMs = (): number => {
-  const raw = (process.env.FETCH_DELAY_MS ?? '').trim();
-  if (!raw) return 0;
-  const n = Number(raw);
-  return Number.isFinite(n) && n >= 0 ? n : 0;
-};
-
-type FailedFile = {
-  extId: string;
-  url: string;
-  reason: string;
-};
-
 /**
  * 1) Stáhne index adresáře now/data/
  * 2) Projde všechny stanice (nebo ONLY_STATIONS)
@@ -311,118 +269,138 @@ type FailedFile = {
  */
 export const ingestNowMeasurements = async (
   db: Db,
-): Promise<{ files: number; rowsUpserted: number; failedFiles: number; failed: FailedFile[] }> => {
+): Promise<{ files: number; rowsToUpsert: number, rowsUpserted: number; errors: string[] }> => {
+  const runStartedAt = process.hrtime.bigint();
+
   const baseUrl = process.env.CHMI_NOW_INDEX ?? DEFAULT_NOW_INDEX; // končí na .../now/data/
   const only = getOnlyStationsSet();
-  const concurrency = getFetchConcurrency();
-  const delayMs = getFetchDelayMs();
 
+  const msSince = (t0: bigint) => Number((process.hrtime.bigint() - t0) / 1_000_000n);
+
+  const tLoadStations = process.hrtime.bigint();
   // 1) Seznam stanic z DB, ne z HTML indexu
   let stationExternalIds = await loadStationExternalIds(db);
-  if (only) stationExternalIds = stationExternalIds.filter((id) => only.has(id));
-
-  let rowsUpserted = 0;
-  let failedFiles = 0;
-  const failed: FailedFile[] = [];
-
-  console.log('stations', stationExternalIds.length, 'concurrency', concurrency);
-
-  const results = await mapWithConcurrency(stationExternalIds, concurrency, async (extId) => {
-    const url = `${baseUrl}${extId}.json`;
-
-    try {
-      const res = await fetchWithTimeout(url, 8000);
-      if (!res.ok) {
-        failedFiles += 1;
-        failed.push({
-          extId,
-          url,
-          reason: `HTTP ${res.status}`,
-        });
-        return;
-      }
-
-      const json = await res.json();
-      const obj = json?.objList?.[0];
-      if (!obj?.objID) return;
-
-      // ensure station + get internal station.id
-      const stationRes = await db.query(
-        `
-        INSERT INTO station (id_external, name, meta, updated_at)
-        VALUES ($1, $2, $3, NOW())
-        ON CONFLICT (id_external) DO UPDATE SET
-          updated_at = NOW()
-        RETURNING id
-        `,
-        [extId, extId, {}],
-      );
-
-      const stationId: number | null = stationRes.rows[0]?.id ?? null;
-      if (stationId === null) {
-        failedFiles += 1;
-        failed.push({
-          extId,
-          url,
-          reason: 'stationId null after upsert',
-        });
-        return;
-      }
-
-      const points = mergeTimeseries(obj);
-      if (points.length === 0) return;
-
-      const tsArr: string[] = [];
-      const hArr: (number | null)[] = [];
-      const qArr: (number | null)[] = [];
-
-      for (const p of points) {
-        tsArr.push(p.ts);
-        hArr.push(p.water_level_cm);
-        qArr.push(p.discharge_m3s);
-      }
-
-      const q = await db.query(
-        `
-        INSERT INTO measurement (
-          station_id,
-          ts,
-          water_level_cm,
-          discharge_m3s,
-          source
-        )
-        SELECT
-          $1 AS station_id,
-          x.ts,
-          x.water_level_cm,
-          x.discharge_m3s,
-          'chmi-now' AS source
-        FROM UNNEST(
-          $2::timestamptz[],
-          $3::numeric[],
-          $4::numeric[]
-        ) AS x(ts, water_level_cm, discharge_m3s)
-        ON CONFLICT (station_id, ts) DO UPDATE SET
-          water_level_cm = COALESCE(EXCLUDED.water_level_cm, measurement.water_level_cm),
-          discharge_m3s = COALESCE(EXCLUDED.discharge_m3s, measurement.discharge_m3s)
-        `,
-        [stationId, tsArr, hArr, qArr],
-      );
-
-      rowsUpserted += q.rowCount ?? 0;
-
-      if (delayMs > 0) await sleep(delayMs);
-    } catch (e: any) {
-      failedFiles += 1;
-      failed.push({
-        extId,
-        url,
-        reason: String(e?.message ?? e),
-      });
-    }
+  if (only) {
+    stationExternalIds = stationExternalIds.filter((id) => only.has(id));
+  }
+  console.log('[ingestNow] stations loaded', {
+    count: stationExternalIds.length,
+    ms: msSince(tLoadStations),
   });
 
-  void results;
+  const tStationMap = process.hrtime.bigint();
+  const stationRows = await db.query(
+    `
+    SELECT id, id_external
+    FROM station
+    WHERE id_external = ANY($1::text[])
+    `,
+    [stationExternalIds],
+  );
 
-  return { files: stationExternalIds.length, rowsUpserted, failedFiles, failed };
+  const stationIdByExt = new Map<string, number>();
+  for (const row of stationRows.rows) {
+    stationIdByExt.set(row.id_external, row.id);
+  }
+  console.log('[ingestNow] station id map built', {
+    rows: stationRows.rowCount ?? stationRows.rows.length,
+    ms: msSince(tStationMap),
+  });
+
+  const tFetchAll = process.hrtime.bigint();
+
+  const promises = stationExternalIds.map(async (extId) => {
+    const url = `${baseUrl}${extId}.json`;
+    const res = await fetchWithTimeout(url, 8000);
+    if (res.status != 200) {
+      return { error: `Fetch of ${url} ends with status ${res.status}.`, rows: [] };
+    }
+    const json = await res.json();
+    const obj = json?.objList?.[0];
+    if (obj == null) {
+      return { error: `File ${url} has no object.`, rows: [] };
+    }
+    const points = mergeTimeseries(obj);
+    const stationId = stationIdByExt.get(extId) ?? null;
+    return {
+      error: null,
+      rows: points.map((point) => ({
+        stationId,
+        ...point,
+      })),
+    };
+  });
+
+  const batches = await Promise.all(promises);
+
+  const allRows = batches.map((batch) => batch.rows);
+  const errors = batches.map((batch) => batch.error).filter((err) => err != null);
+  const toInsert = allRows.flat();
+
+  console.log('[ingestNow] fetch+parse done', {
+    toInsert: toInsert.length,
+    ms: msSince(tFetchAll),
+  });
+
+  const tUpsert = process.hrtime.bigint();
+  const queryResult = await db.query(
+    `
+    INSERT INTO measurement (
+      station_id,
+      ts,
+      water_level_cm,
+      discharge_m3s,
+      source
+    )
+    SELECT
+      x.station_id,
+      x.ts,
+      x.water_level_cm,
+      x.discharge_m3s,
+      x.source
+    FROM UNNEST(
+      $1::BIGINT[],
+      $2::TIMESTAMPTZ[],
+      $3::NUMERIC[],
+      $4::NUMERIC[],
+      $5::TEXT[]
+    ) AS x(station_id, ts, water_level_cm, discharge_m3s, source)
+    ON CONFLICT (ts, station_id) DO UPDATE SET
+      water_level_cm = COALESCE(EXCLUDED.water_level_cm, measurement.water_level_cm),
+      discharge_m3s  = COALESCE(EXCLUDED.discharge_m3s,  measurement.discharge_m3s),
+      source         = EXCLUDED.source
+    WHERE
+      EXCLUDED.water_level_cm IS DISTINCT FROM measurement.water_level_cm
+      OR EXCLUDED.discharge_m3s IS DISTINCT FROM measurement.discharge_m3s
+    `,
+    [
+      toInsert.map((r) => r.stationId),
+      toInsert.map((r) => r.ts),
+      toInsert.map((r) => r.water_level_cm ?? null),
+      toInsert.map((r) => r.discharge_m3s ?? null),
+      toInsert.map(() => 'chmi_now'),
+    ],
+  );
+
+  const upsertMs = msSince(tUpsert);
+  const rowsUpserted = queryResult.rowCount ?? 0;
+
+  console.log('[ingestNow] upsert done', {
+    rowsUpserted,
+    ms: upsertMs,
+  });
+
+  console.log('[ingestNow] finished', {
+    files: stationExternalIds.length,
+    rowsUpserted,
+    errors,
+    totalMs: msSince(runStartedAt),
+  });
+
+  return {
+    files: stationExternalIds.length,
+    rowsToUpsert: toInsert.length,
+    rowsUpserted,
+    errors,
+  };
 };

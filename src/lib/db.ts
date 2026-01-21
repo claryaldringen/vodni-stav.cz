@@ -33,7 +33,3 @@ export const connectDb = async (): Promise<Db> => {
   return global.__pgPool;
 };
 
-export const closeDb = async (_db: Db): Promise<void> => {
-  // Na serverless NEdělej pool.end() po requestu.
-  // Nech to běžet, ať se spojení reuseuje mezi invokacemi.
-};

@@ -8,7 +8,7 @@ Tento soubor poskytuje kontext pro Claude Code (claude.ai/code) při práci s t�
 
 ## Přehled projektu
 
-**vodni-stav.cz** — agregátor hydrologických dat z ČHMÚ. Stahuje data o vodních stavech a průtocích z otevřených API ČHMÚ do PostgreSQL, zobrazuje přes Next.js aplikaci.
+**vodnistav.cz** — agregátor hydrologických dat z ČHMÚ. Stahuje data o vodních stavech a průtocích z otevřených API ČHMÚ do PostgreSQL, zobrazuje přes Next.js aplikaci.
 
 ## Příkazy
 

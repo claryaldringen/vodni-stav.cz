@@ -12,7 +12,7 @@ const Footer = () => (
       — Český hydrometeorologický ústav. Tento web není oficiální službou ČHMÚ.
     </Typography>
     <Typography variant="caption" display="block" textAlign="center" color="text.secondary" mt={0.5}>
-      &copy; {new Date().getFullYear()} vodni-stav.cz
+      &copy; {new Date().getFullYear()} vodnistav.cz
     </Typography>
   </Box>
 );

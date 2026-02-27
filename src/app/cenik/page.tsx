@@ -11,7 +11,7 @@ import CheckIcon from '@mui/icons-material/Check';
 
 export const metadata: Metadata = {
   title: 'Ceník — Vodní stav',
-  description: 'Ceník přístupu k API vodni-stav.cz — test mód zdarma, live data od 10 Kč/měsíc.',
+  description: 'Ceník přístupu k API vodnistav.cz — test mód zdarma, live data od 10 Kč/měsíc.',
 };
 
 const Feature = ({ children }: { children: React.ReactNode }) => (

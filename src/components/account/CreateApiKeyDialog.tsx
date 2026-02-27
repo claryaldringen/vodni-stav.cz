@@ -12,9 +12,6 @@ import Typography from '@mui/material/Typography';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import IconButton from '@mui/material/IconButton';
 import Box from '@mui/material/Box';
-import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
-import ToggleButton from '@mui/material/ToggleButton';
-import type { ApiKeyMode } from '@/src/lib/types';
 
 interface CreateApiKeyDialogProps {
   open: boolean;
@@ -24,7 +21,6 @@ interface CreateApiKeyDialogProps {
 
 const CreateApiKeyDialog = ({ open, onClose, onCreated }: CreateApiKeyDialogProps) => {
   const [name, setName] = useState('');
-  const [mode, setMode] = useState<ApiKeyMode>('test');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [createdKey, setCreatedKey] = useState('');
@@ -41,7 +37,7 @@ const CreateApiKeyDialog = ({ open, onClose, onCreated }: CreateApiKeyDialogProp
     const res = await fetch('/api/keys', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim(), mode }),
+      body: JSON.stringify({ name: name.trim() }),
     });
 
     setLoading(false);
@@ -65,7 +61,6 @@ const CreateApiKeyDialog = ({ open, onClose, onCreated }: CreateApiKeyDialogProp
 
   const handleClose = () => {
     setName('');
-    setMode('test');
     setError('');
     setCreatedKey('');
     setCopied(false);
@@ -121,26 +116,7 @@ const CreateApiKeyDialog = ({ open, onClose, onCreated }: CreateApiKeyDialogProp
               fullWidth
               autoFocus
               helperText="Např. 'Produkce', 'Testování'"
-              sx={{ mb: 3 }}
             />
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>
-              Mód
-            </Typography>
-            <ToggleButtonGroup
-              value={mode}
-              exclusive
-              onChange={(_, v) => v && setMode(v)}
-              fullWidth
-              size="small"
-            >
-              <ToggleButton value="test">Test</ToggleButton>
-              <ToggleButton value="live">Live</ToggleButton>
-            </ToggleButtonGroup>
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-              {mode === 'test'
-                ? 'Testovací klíč vrací fake data. Max 60 požadavků/min. Zdarma.'
-                : 'Live klíč vrací reálná data z ČHMÚ.'}
-            </Typography>
           </>
         )}
       </DialogContent>

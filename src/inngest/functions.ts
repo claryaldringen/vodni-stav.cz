@@ -7,6 +7,9 @@ import {
   runDiscoverIfNeeded,
 } from '@/scripts/ingest/chmi';
 import { recordRunFinish, recordRunStart } from '@/scripts/ingest/utils';
+import { sendEmail } from '@/src/lib/email';
+import { expirationWarningEmail, expiredEmail } from '@/src/lib/email-templates';
+import type { PaymentPlan } from '@/src/lib/types';
 
 const DEFAULT_HISTORICAL_DAILY = 'https://opendata.chmi.cz/hydrology/historical/data/daily/';
 const HISTORICAL_BATCH_SIZE = 50;
@@ -115,5 +118,110 @@ export const historicalIngest = inngest.createFunction(
     }
 
     return { status: 'batch_done', batch: pending.length, remaining: totalPending, result };
+  },
+);
+
+// --- Subscription expiration notifier ---
+
+interface PaymentRow {
+  id: number;
+  plan: PaymentPlan;
+  expires_at: Date;
+  user_email: string;
+  user_name: string | null;
+}
+
+export const subscriptionNotifier = inngest.createFunction(
+  {
+    id: 'subscription-notifier',
+    retries: 1,
+  },
+  { cron: 'TZ=UTC 0 8 * * *' },
+  async ({ step }) => {
+    // 1. Warnings: monthly 3d, yearly 14d, yearly 3d
+    const warnings = await step.run('send-warnings', async () => {
+      const db = await connectDb();
+      let sent = 0;
+
+      // Each window: [plan, interval, notification type]
+      const windows: [string, string, string][] = [
+        ['monthly', '3 days', 'warning_3d'],
+        ['yearly', '14 days', 'warning_14d'],
+        ['yearly', '3 days', 'warning_3d'],
+      ];
+
+      for (const [plan, interval, type] of windows) {
+        const rows = await db<PaymentRow[]>`
+          SELECT p.id, p.plan, p.expires_at, u.email AS user_email, u.name AS user_name
+          FROM payment p
+          JOIN "user" u ON u.id = p.user_id
+          WHERE p.plan = ${plan}
+            AND p.status = 'paid'
+            AND p.expires_at > NOW()
+            AND p.expires_at <= NOW() + ${interval}::INTERVAL
+            AND NOT EXISTS (
+              SELECT 1 FROM notification_log nl
+              WHERE nl.payment_id = p.id AND nl.type = ${type}
+            )
+        `;
+
+        for (const row of rows) {
+          const daysLeft = Math.ceil(
+            (row.expires_at.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+          );
+          const { subject, html } = expirationWarningEmail(
+            row.user_name ?? '',
+            row.plan,
+            row.expires_at,
+            daysLeft,
+          );
+          await sendEmail(row.user_email, subject, html);
+          await db`
+            INSERT INTO notification_log (payment_id, type)
+            VALUES (${row.id}, ${type})
+            ON CONFLICT DO NOTHING
+          `;
+          sent++;
+        }
+      }
+
+      return { sent };
+    });
+
+    // 2. Expired: mark as expired + send email
+    const expired = await step.run('handle-expired', async () => {
+      const db = await connectDb();
+
+      const rows = await db<PaymentRow[]>`
+        SELECT p.id, p.plan, p.expires_at, u.email AS user_email, u.name AS user_name
+        FROM payment p
+        JOIN "user" u ON u.id = p.user_id
+        WHERE p.status = 'paid'
+          AND p.expires_at < NOW()
+          AND NOT EXISTS (
+            SELECT 1 FROM notification_log nl
+            WHERE nl.payment_id = p.id AND nl.type = 'expired'
+          )
+      `;
+
+      let sent = 0;
+
+      for (const row of rows) {
+        const { subject, html } = expiredEmail(row.user_name ?? '', row.plan);
+        await sendEmail(row.user_email, subject, html);
+
+        await db`UPDATE payment SET status = 'expired' WHERE id = ${row.id}`;
+        await db`
+          INSERT INTO notification_log (payment_id, type)
+          VALUES (${row.id}, ${'expired'})
+          ON CONFLICT DO NOTHING
+        `;
+        sent++;
+      }
+
+      return { sent };
+    });
+
+    return { warnings, expired };
   },
 );

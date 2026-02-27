@@ -25,13 +25,13 @@ const DocsPage = () => (
       Dokumentace API
     </Typography>
     <Typography variant="body1" paragraph>
-      Veřejné API aplikace vodni-stav.cz poskytuje přístup k hydrologickým datům z ČHMÚ — vodní
+      Veřejné API aplikace vodnistav.cz poskytuje přístup k hydrologickým datům z ČHMÚ — vodní
       stavy a průtoky na řekách v České republice. API je dostupné ve dvou variantách: REST a
       GraphQL.
     </Typography>
     <Typography variant="body1" paragraph>
       <strong>Base URL:</strong>{' '}
-      <code>https://vodni-stav.cz</code>
+      <code>https://vodnistav.cz</code>
     </Typography>
 
     <Divider sx={{ my: 4 }} />
@@ -55,7 +55,7 @@ const DocsPage = () => (
       </Link>
       .
     </Alert>
-    <CodeBlock language="bash">{`curl -H "X-API-Key: vsc_váš_klíč" https://vodni-stav.cz/api/v1/stations`}</CodeBlock>
+    <CodeBlock language="bash">{`curl -H "X-API-Key: vsc_váš_klíč" https://vodnistav.cz/api/v1/stations`}</CodeBlock>
 
     <Typography variant="h5" component="h3" gutterBottom sx={{ mt: 3 }}>
       Test vs Live mód
@@ -165,10 +165,10 @@ const DocsPage = () => (
       </TableContainer>
       <Typography variant="subtitle2" gutterBottom>Příklady:</Typography>
       <CodeBlock language="bash">{`# Relativní období
-curl -H "X-API-Key: vsc_..." "https://vodni-stav.cz/api/v1/stations/1/measurements?period=7d"
+curl -H "X-API-Key: vsc_..." "https://vodnistav.cz/api/v1/stations/1/measurements?period=7d"
 
 # Konkrétní měsíc
-curl -H "X-API-Key: vsc_..." "https://vodni-stav.cz/api/v1/stations/1/measurements?from=2025-01-01&to=2025-02-01"`}</CodeBlock>
+curl -H "X-API-Key: vsc_..." "https://vodnistav.cz/api/v1/stations/1/measurements?from=2025-01-01&to=2025-02-01"`}</CodeBlock>
     </EndpointCard>
 
     <EndpointCard
@@ -310,7 +310,7 @@ curl -H "X-API-Key: vsc_..." "https://vodni-stav.cz/api/v1/stations/1/measuremen
       schéma stáhnou automaticky.
     </Typography>
     <CodeBlock language="bash">{`# Stažení SDL schématu
-curl -o schema.graphql https://vodni-stav.cz/api/graphql/schema`}</CodeBlock>
+curl -o schema.graphql https://vodnistav.cz/api/graphql/schema`}</CodeBlock>
 
     <Typography variant="subtitle2" gutterBottom>Příklad dotazu:</Typography>
     <CodeBlock language="graphql">{`query {
@@ -346,7 +346,7 @@ curl -o schema.graphql https://vodni-stav.cz/api/graphql/schema`}</CodeBlock>
 }`}</CodeBlock>
 
     <Typography variant="subtitle2" gutterBottom>Příklad volání:</Typography>
-    <CodeBlock language="bash">{`curl -X POST https://vodni-stav.cz/api/graphql \\
+    <CodeBlock language="bash">{`curl -X POST https://vodnistav.cz/api/graphql \\
   -H "Content-Type: application/json" \\
   -H "X-API-Key: vsc_..." \\
   -d '{"query": "{ stations { id name riverName } }"}'`}</CodeBlock>
@@ -455,24 +455,24 @@ type RiverMeasurementsResponse = ApiSuccessResponse<
 
     <Typography variant="h6" gutterBottom>curl</Typography>
     <CodeBlock language="bash">{`# Seznam stanic
-curl -H "X-API-Key: vsc_váš_klíč" https://vodni-stav.cz/api/v1/stations
+curl -H "X-API-Key: vsc_váš_klíč" https://vodnistav.cz/api/v1/stations
 
 # Měření stanice za 7 dnů
-curl -H "X-API-Key: vsc_váš_klíč" "https://vodni-stav.cz/api/v1/stations/1/measurements?period=7d"
+curl -H "X-API-Key: vsc_váš_klíč" "https://vodnistav.cz/api/v1/stations/1/measurements?period=7d"
 
 # Měření za leden 2025
-curl -H "X-API-Key: vsc_váš_klíč" "https://vodni-stav.cz/api/v1/stations/1/measurements?from=2025-01-01&to=2025-02-01"
+curl -H "X-API-Key: vsc_váš_klíč" "https://vodnistav.cz/api/v1/stations/1/measurements?from=2025-01-01&to=2025-02-01"
 
 # Dostupnost dat stanice
-curl -H "X-API-Key: vsc_váš_klíč" https://vodni-stav.cz/api/v1/stations/1/measurements/availability
+curl -H "X-API-Key: vsc_váš_klíč" https://vodnistav.cz/api/v1/stations/1/measurements/availability
 
 # Seznam toků
-curl -H "X-API-Key: vsc_váš_klíč" https://vodni-stav.cz/api/v1/rivers`}</CodeBlock>
+curl -H "X-API-Key: vsc_váš_klíč" https://vodnistav.cz/api/v1/rivers`}</CodeBlock>
 
     <Typography variant="h6" gutterBottom>JavaScript (fetch)</Typography>
     <CodeBlock language="javascript">{`const API_KEY = 'vsc_váš_klíč';
 
-const res = await fetch('https://vodni-stav.cz/api/v1/stations', {
+const res = await fetch('https://vodnistav.cz/api/v1/stations', {
   headers: { 'X-API-Key': API_KEY },
 });
 const { data, meta } = await res.json();
@@ -484,7 +484,7 @@ console.log(\`Načteno \${meta.count} stanic\`);`}</CodeBlock>
 API_KEY = "vsc_váš_klíč"
 headers = {"X-API-Key": API_KEY}
 
-res = requests.get("https://vodni-stav.cz/api/v1/stations", headers=headers)
+res = requests.get("https://vodnistav.cz/api/v1/stations", headers=headers)
 data = res.json()
 print(f"Načteno {data['meta']['count']} stanic")`}</CodeBlock>
   </Box>

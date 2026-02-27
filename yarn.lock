@@ -2355,6 +2355,13 @@
   dependencies:
     undici-types "~6.21.0"
 
+"@types/nodemailer@^7.0.11":
+  version "7.0.11"
+  resolved "https://registry.yarnpkg.com/@types/nodemailer/-/nodemailer-7.0.11.tgz#f04f91aac57eb4f2b79600867288bafe61c360d3"
+  integrity sha512-E+U4RzR2dKrx+u3N4DlsmLaDC6mMZOM/TPROxA0UAPiTgI0y4CEFBmZE+coGWTjakDriRsXG368lNk1u9Q0a2g==
+  dependencies:
+    "@types/node" "*"
+
 "@types/oracledb@6.5.2":
   version "6.5.2"
   resolved "https://registry.yarnpkg.com/@types/oracledb/-/oracledb-6.5.2.tgz#194cd0f13436f9e1e744a6e5e056a7ca400536d5"
@@ -4843,6 +4850,11 @@ node-releases@^2.0.27:
   version "2.0.27"
   resolved "https://registry.npmjs.org/node-releases/-/node-releases-2.0.27.tgz"
   integrity sha512-nmh3lCkYZ3grZvqcCH+fjmQ7X+H0OeZgP40OierEaAptX4XofMh5kwNbWh7lBduUzCcV/8kZ+NDLCwm2iorIlA==
+
+nodemailer@^8.0.1:
+  version "8.0.1"
+  resolved "https://registry.yarnpkg.com/nodemailer/-/nodemailer-8.0.1.tgz#225842a5e3a06c4ee39adfdf784acd9e00bea9c2"
+  integrity sha512-5kcldIXmaEjZcHR6F28IKGSgpmZHaF1IXLWFTG+Xh3S+Cce4MiakLtWY+PlBU69fLbRa8HlaGIrC/QolUpHkhg==
 
 oauth4webapi@^3.3.0:
   version "3.8.5"

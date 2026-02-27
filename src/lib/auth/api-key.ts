@@ -35,16 +35,25 @@ interface CreatedApiKey {
 export const createApiKeyForUser = async (
   userId: string,
   name: string,
-  mode: 'test' | 'live' = 'test',
 ): Promise<CreatedApiKey> => {
   const { fullKey, prefix, keyHash } = await generateApiKey();
   const sql = await connectDb();
   const rows = await sql<{ id: number; name: string; key_prefix: string; created_at: string }[]>`
-    INSERT INTO api_key (user_id, name, key_prefix, key_hash, mode)
-    VALUES (${userId}, ${name}, ${prefix}, ${keyHash}, ${mode})
+    INSERT INTO api_key (user_id, name, key_prefix, key_hash)
+    VALUES (${userId}, ${name}, ${prefix}, ${keyHash})
     RETURNING id, name, key_prefix, created_at
   `;
   return { ...rows[0], fullKey };
+};
+
+export const resolveApiKeyMode = async (userId: string): Promise<'test' | 'live'> => {
+  const sql = await connectDb();
+  const [row] = await sql`
+    SELECT 1 FROM payment
+    WHERE user_id = ${userId} AND status = 'paid' AND expires_at > NOW()
+    LIMIT 1
+  `;
+  return row ? 'live' : 'test';
 };
 
 // --- Validation cache (TTL 10s) to avoid DB write on every request ---
@@ -53,7 +62,6 @@ const CACHE_TTL_MS = 10_000;
 
 interface CachedResult {
   userId: string;
-  mode: 'test' | 'live';
   cachedAt: number;
 }
 
@@ -61,21 +69,20 @@ const validationCache = new Map<string, CachedResult>();
 
 export const validateApiKey = async (
   key: string,
-): Promise<{ userId: string; mode: 'test' | 'live' } | null> => {
+): Promise<{ userId: string } | null> => {
   const keyHash = await sha256(key);
   const now = Date.now();
 
   // Check cache first
   const cached = validationCache.get(keyHash);
   if (cached && now - cached.cachedAt < CACHE_TTL_MS) {
-    return { userId: cached.userId, mode: cached.mode };
+    return { userId: cached.userId };
   }
 
   const sql = await connectDb();
 
-  // Validate: SELECT instead of UPDATE for cached reads
-  const rows = await sql<{ user_id: string; mode: string }[]>`
-    SELECT user_id, mode FROM api_key
+  const rows = await sql<{ user_id: string }[]>`
+    SELECT user_id FROM api_key
     WHERE key_hash = ${keyHash} AND is_active = true
   `;
   if (!rows[0]) {
@@ -83,7 +90,7 @@ export const validateApiKey = async (
     return null;
   }
 
-  const result = { userId: rows[0].user_id, mode: rows[0].mode as 'test' | 'live' };
+  const result = { userId: rows[0].user_id };
 
   // Cache the result
   validationCache.set(keyHash, { ...result, cachedAt: now });
@@ -102,7 +109,6 @@ export interface ApiKeyInfo {
   id: number;
   name: string;
   key_prefix: string;
-  mode: 'test' | 'live';
   last_used_at: string | null;
   request_count: number;
   is_active: boolean;
@@ -112,7 +118,7 @@ export interface ApiKeyInfo {
 export const listApiKeys = async (userId: string): Promise<ApiKeyInfo[]> => {
   const sql = await connectDb();
   return sql<ApiKeyInfo[]>`
-    SELECT id, name, key_prefix, mode, last_used_at, request_count, is_active, created_at
+    SELECT id, name, key_prefix, last_used_at, request_count, is_active, created_at
     FROM api_key
     WHERE user_id = ${userId}
     ORDER BY created_at DESC

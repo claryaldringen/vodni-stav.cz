@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateApiKey } from '../auth/api-key';
+import { validateApiKey, resolveApiKeyMode } from '../auth/api-key';
 import { apiError } from './errors';
 import { checkRateLimit } from './rate-limit';
 
@@ -32,7 +32,9 @@ export const requireApiKey = async (
     return withCors(apiError('Neplatný nebo deaktivovaný API klíč.', 401));
   }
 
-  if (result.mode === 'test') {
+  const mode = await resolveApiKeyMode(result.userId);
+
+  if (mode === 'test') {
     const keyHash = key.slice(0, 12);
     const { allowed, remaining } = checkRateLimit(keyHash);
     if (!allowed) {
@@ -44,5 +46,5 @@ export const requireApiKey = async (
     }
   }
 
-  return { userId: result.userId, mode: result.mode };
+  return { userId: result.userId, mode };
 };

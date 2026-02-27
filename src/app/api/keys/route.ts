@@ -24,9 +24,7 @@ export const POST = async (request: NextRequest) => {
     return NextResponse.json({ error: 'Název je povinný.' }, { status: 400 });
   }
 
-  const mode = body.mode === 'live' ? 'live' : 'test';
-
-  const result = await createApiKeyForUser(session.user.id, name, mode);
+  const result = await createApiKeyForUser(session.user.id, name);
   return NextResponse.json({
     id: result.id,
     name: result.name,

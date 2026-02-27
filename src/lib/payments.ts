@@ -105,11 +105,5 @@ export const activatePayment = async (
     `;
 
     if (!payment) return;
-
-    await tx`
-      UPDATE api_key
-      SET mode = 'live'
-      WHERE user_id = ${payment.user_id} AND mode = 'test'
-    `;
   });
 };

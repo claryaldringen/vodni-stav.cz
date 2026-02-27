@@ -92,13 +92,10 @@ export interface SubscriptionInfo {
   expiresAt: string;
 }
 
-export type ApiKeyMode = 'test' | 'live';
-
 export interface ApiKey {
   id: number;
   name: string;
   key_prefix: string;
-  mode: ApiKeyMode;
   last_used_at: string | null;
   request_count: number;
   is_active: boolean;

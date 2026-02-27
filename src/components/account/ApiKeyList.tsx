@@ -58,7 +58,6 @@ const ApiKeyList = () => {
           <TableRow>
             <TableCell>Název</TableCell>
             <TableCell>Prefix</TableCell>
-            <TableCell>Mód</TableCell>
             <TableCell>Vytvořeno</TableCell>
             <TableCell>Poslední použití</TableCell>
             <TableCell align="right">Požadavky</TableCell>
@@ -72,14 +71,6 @@ const ApiKeyList = () => {
               <TableCell>{key.name}</TableCell>
               <TableCell>
                 <code>{key.key_prefix}...</code>
-              </TableCell>
-              <TableCell>
-                <Chip
-                  label={key.mode === 'live' ? 'Live' : 'Test'}
-                  color={key.mode === 'live' ? 'success' : 'warning'}
-                  size="small"
-                  variant="outlined"
-                />
               </TableCell>
               <TableCell>{new Date(key.created_at).toLocaleDateString('cs')}</TableCell>
               <TableCell>

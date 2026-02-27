@@ -1,0 +1,1 @@
+ALTER TABLE api_key ADD COLUMN mode TEXT NOT NULL DEFAULT 'test';

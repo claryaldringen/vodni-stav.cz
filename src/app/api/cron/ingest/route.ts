@@ -1,39 +1,25 @@
 import { NextResponse } from 'next/server';
-import { connectDb } from '@/src/lib/db';
-import { ingestNowMeasurements, runDiscoverIfNeeded } from '@/scripts/ingest/chmi';
-import { recordRunFinish, recordRunStart } from '@/scripts/ingest/utils';
+import { inngest } from '@/src/inngest/client';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
-const assertCronAuth = (req: Request) => {
+const isAuthorized = (req: Request) => {
   const secret = process.env.CRON_SECRET;
   if (!secret) {
-    throw new Error('CRON_SECRET is not set');
+    return false;
   }
-
-  if (req.headers.get('x-cron-secret') !== secret) {
-    throw new Error('Unauthorized');
-  }
+  const auth = req.headers.get('authorization');
+  return auth === `Bearer ${secret}`;
 };
 
 export const GET = async (req: Request) => {
-  try {
-    assertCronAuth(req);
-    const db = await connectDb();
-    const discover = await runDiscoverIfNeeded(db);
-
-    const runId = await recordRunStart(db, 'ingest');
-
-    try {
-      const now = await ingestNowMeasurements(db);
-      await recordRunFinish(db, runId, 'ok', now);
-      return NextResponse.json({ ok: true, discover, ...now });
-    } catch (e: any) {
-      await recordRunFinish(db, runId, 'error', { error: String(e?.message ?? e) });
-      throw e;
-    }
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: String(e?.message ?? e) }, { status: 500 });
+  if (!isAuthorized(req)) {
+    return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
   }
+
+  await inngest.send({ name: 'ingest/manual' });
+
+  return NextResponse.json({ ok: true, triggered: true });
 };

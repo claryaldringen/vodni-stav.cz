@@ -1,6 +1,6 @@
-import { Pool } from 'pg';
+import postgres from 'postgres';
 
-export type Db = Pool;
+export type Db = postgres.Sql;
 
 export const requireEnv = (name: string): string => {
   const v = process.env[name];
@@ -9,27 +9,19 @@ export const requireEnv = (name: string): string => {
 };
 
 declare global {
-  // eslint-disable-next-line no-var
-  var __pgPool: Pool | undefined;
+  var __sql: Db | undefined;
 }
 
 export const connectDb = async (): Promise<Db> => {
   const url = requireEnv('DATABASE_URL');
 
-  if (!global.__pgPool) {
-    global.__pgPool = new Pool({
-      connectionString: url,
-      // Neon/Vercel: sslmode=require je v URL; pro jistotu můžeš nechat i ssl:
-      ssl: { rejectUnauthorized: false },
+  if (!global.__sql) {
+    global.__sql = postgres(url, {
       max: 5,
-      idleTimeoutMillis: 30_000,
-      connectionTimeoutMillis: 10_000,
+      idle_timeout: 30,
+      connect_timeout: 10,
     });
   }
 
-  // volitelné: ověř, že pool žije (rychlý ping)
-  await global.__pgPool.query('SELECT 1');
-
-  return global.__pgPool;
+  return global.__sql;
 };
-

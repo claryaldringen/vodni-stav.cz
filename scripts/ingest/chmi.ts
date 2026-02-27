@@ -5,7 +5,7 @@ import { recordRunFinish, recordRunStart } from '@/scripts/ingest/utils';
 const DEFAULT_META1 = 'https://opendata.chmi.cz/hydrology/now/metadata/meta1.json';
 const DEFAULT_NOW_INDEX = 'https://opendata.chmi.cz/hydrology/now/data/';
 
-const fetchWithTimeout = async (url: string, ms: number) => {
+export const fetchWithTimeout = async (url: string, ms: number) => {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), ms);
   try {
@@ -43,52 +43,44 @@ export const discoverStationsFromNowIndex = async (
     return { discoveredStations: 0, totalInIndex: 0 };
   }
 
-  const q = await db.query(
-    `
+  const q = await db`
     INSERT INTO station (id_external, name, meta, updated_at, is_active)
-    SELECT x, x, '{}'::JSONB, NOW(), TRUE
-    FROM UNNEST($1::TEXT[]) AS x
+    SELECT x, 'Stanice ' || x, '{}'::JSONB, NOW(), TRUE
+    FROM UNNEST(${ids}::TEXT[]) AS x
     ON CONFLICT (id_external) DO NOTHING
-    `,
-    [ids],
-  );
+  `;
 
-  return { discoveredStations: q.rowCount ?? 0, totalInIndex: ids.length };
+  return { discoveredStations: q.count, totalInIndex: ids.length };
 };
 
 const loadStationExternalIds = async (db: Db): Promise<string[]> => {
-  const res = await db.query(
-    `
+  const rows = await db`
     SELECT id_external
     FROM station
     WHERE is_active = TRUE
       AND id_external IS NOT NULL
     ORDER BY id_external
-    `,
-    [],
-  );
-  return res.rows.map((r) => r.id_external).filter(Boolean);
+  `;
+  return rows.map((r) => r.id_external as string).filter(Boolean);
 };
 
 const shouldDiscoverStations = async (db: Db): Promise<boolean> => {
   // 1) prvni beh (zadne stanice)
-  const cntRes = await db.query('SELECT COUNT(*)::INT AS cnt FROM station');
-  const stationCount: number = cntRes.rows[0]?.cnt ?? 0;
+  const cntRes = await db`SELECT COUNT(*)::INT AS cnt FROM station`;
+  const stationCount: number = cntRes[0]?.cnt ?? 0;
   if (stationCount === 0) return true;
 
   // 2) jestli uz dlouho nebezel discover
-  const lastRes = await db.query(
-    `
+  const lastRes = await db`
     SELECT started_at
     FROM ingest_run
     WHERE kind = 'discover'
       AND status = 'ok'
     ORDER BY started_at DESC
     LIMIT 1
-    `,
-  );
+  `;
 
-  const last: string | null = lastRes.rows[0]?.started_at ?? null;
+  const last: string | null = lastRes[0]?.started_at ?? null;
   if (!last) return true;
 
   // 24 hodin
@@ -112,8 +104,9 @@ export const runDiscoverIfNeeded = async (db: Db) => {
     await recordRunFinish(db, runId, 'ok', details);
 
     return { skipped: false, details };
-  } catch (e: any) {
-    await recordRunFinish(db, runId, 'error', { error: String(e?.message ?? e) });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await recordRunFinish(db, runId, 'error', { error: msg });
     throw e;
   }
 };
@@ -160,64 +153,58 @@ export const refreshMetadata = async (
     let riverId: number | null = null;
 
     if (st.riverName) {
-      const riverRes = await db.query(
-        `
-                    INSERT INTO river (id_external, name, basin_id, meta, updated_at)
-                    VALUES (NULL, $1, NULL, $2, NOW())
-                    ON CONFLICT (name) DO UPDATE SET
-                        updated_at = NOW()
-                    RETURNING id
-                `,
-        [st.riverName, {}],
-      );
+      const riverRes = await db`
+        INSERT INTO river (id_external, name, basin_id, meta, updated_at)
+        VALUES (NULL, ${st.riverName}, NULL, ${JSON.stringify({})}::jsonb, NOW())
+        ON CONFLICT (name) DO UPDATE SET
+          updated_at = NOW()
+        RETURNING id
+      `;
 
-      riverId = riverRes.rows[0]?.id ?? null;
+      riverId = riverRes[0]?.id ?? null;
       if (riverId !== null) riversUpserted += 1;
     }
 
     // UPSERT station (UNIQUE(id_external))
-    await db.query(
-      `
-                INSERT INTO station (
-                    id_external,
-                    code,
-                    name,
-                    river_id,
-                    basin_id,
-                    operator,
-                    lat,
-                    lon,
-                    elevation_m,
-                    is_active,
-                    meta,
-                    updated_at
-                )
-                VALUES (
-                           $1,
-                           $2,
-                           $3,
-                           $4,
-                           NULL,
-                           NULL,
-                           $5,
-                           $6,
-                           NULL,
-                           TRUE,
-                           $7,
-                           NOW()
-                       )
-                ON CONFLICT (id_external) DO UPDATE SET
-                                                        code = EXCLUDED.code,
-                                                        name = EXCLUDED.name,
-                                                        river_id = EXCLUDED.river_id,
-                                                        lat = EXCLUDED.lat,
-                                                        lon = EXCLUDED.lon,
-                                                        is_active = TRUE,
-                                                        meta = EXCLUDED.meta,
-                                                        updated_at = NOW()
-            `,
-      [stationExternalId, st.code, st.name, riverId, st.lat, st.lon, st.raw],
-    );
+    await db`
+      INSERT INTO station (
+        id_external,
+        code,
+        name,
+        river_id,
+        basin_id,
+        operator,
+        lat,
+        lon,
+        elevation_m,
+        is_active,
+        meta,
+        updated_at
+      )
+      VALUES (
+        ${stationExternalId},
+        ${st.code},
+        ${st.name},
+        ${riverId},
+        ${null},
+        ${null},
+        ${st.lat},
+        ${st.lon},
+        ${null},
+        TRUE,
+        ${JSON.stringify(st.raw)}::jsonb,
+        NOW()
+      )
+      ON CONFLICT (id_external) DO UPDATE SET
+        code = EXCLUDED.code,
+        name = EXCLUDED.name,
+        river_id = EXCLUDED.river_id,
+        lat = EXCLUDED.lat,
+        lon = EXCLUDED.lon,
+        is_active = TRUE,
+        meta = EXCLUDED.meta,
+        updated_at = NOW()
+    `;
 
     stationsUpserted += 1;
   }
@@ -231,7 +218,114 @@ type MeasurementPoint = {
   discharge_m3s: number | null; // Q
 };
 
-const mergeTimeseries = (objListItem: any): MeasurementPoint[] => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const mergeHistoricalTimeseries = (json: any): MeasurementPoint[] => {
+  const byTs = new Map<string, { H?: number; Q?: number }>();
+
+  for (const series of json.tsList ?? []) {
+    const key = series.tsConID; // 'HD' = denní hladina, 'QD' = denní průtok
+    for (const row of series.tsData?.data?.values ?? []) {
+      const [dt, value] = row as [string, number];
+      if (!byTs.has(dt)) byTs.set(dt, {});
+      const cur = byTs.get(dt)!;
+      if (key === 'HD') cur.H = value;
+      if (key === 'QD') cur.Q = value;
+    }
+  }
+
+  const points: MeasurementPoint[] = [];
+  for (const [ts, v] of byTs.entries()) {
+    if (v.H || v.Q) {
+      points.push({
+        ts,
+        water_level_cm: v.H ?? null,
+        discharge_m3s: v.Q ?? null,
+      });
+    }
+  }
+
+  points.sort((a, b) => a.ts.localeCompare(b.ts));
+  return points;
+};
+
+export type HistoricalFileEntry = {
+  stationExtId: string;
+  year: number;
+  filename: string;
+};
+
+export const discoverHistoricalFiles = async (baseUrl: string): Promise<HistoricalFileEntry[]> => {
+  const res = await fetchWithTimeout(baseUrl, 15000);
+  if (!res.ok) throw new Error(`historical index fetch failed: ${res.status}`);
+  const html = await res.text();
+
+  const entries: HistoricalFileEntry[] = [];
+  const re = /href="(H_([^"]+?)_DQ_(\d{4})\.json)"/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    entries.push({ filename: m[1], stationExtId: m[2], year: Number(m[3]) });
+  }
+  return entries;
+};
+
+export const ingestHistoricalBatch = async (
+  db: Db,
+  baseUrl: string,
+  files: HistoricalFileEntry[],
+  stationIdByExt: Map<string, number>,
+): Promise<{ fetched: number; upserted: number; errors: string[] }> => {
+  const errors: string[] = [];
+  let totalUpserted = 0;
+
+  for (const file of files) {
+    const stationId = stationIdByExt.get(file.stationExtId);
+    if (stationId == null) {
+      errors.push(`No station in DB for ${file.stationExtId}`);
+      continue;
+    }
+
+    try {
+      const url = `${baseUrl}${file.filename}`;
+      const res = await fetchWithTimeout(url, 15000);
+      if (!res.ok) {
+        errors.push(`Fetch ${file.filename}: ${res.status}`);
+        continue;
+      }
+
+      const json = await res.json();
+      const points = mergeHistoricalTimeseries(json);
+      if (points.length === 0) continue;
+
+      const result = await db`
+        INSERT INTO measurement (station_id, ts, water_level_cm, discharge_m3s, source)
+        SELECT x.station_id, x.ts, x.water_level_cm, x.discharge_m3s, x.source
+        FROM UNNEST(
+          ${points.map(() => stationId)}::BIGINT[],
+          ${points.map((p) => p.ts)}::TIMESTAMPTZ[],
+          ${points.map((p) => p.water_level_cm ?? null)}::NUMERIC[],
+          ${points.map((p) => p.discharge_m3s ?? null)}::NUMERIC[],
+          ${points.map(() => 'chmi_daily')}::TEXT[]
+        ) AS x(station_id, ts, water_level_cm, discharge_m3s, source)
+        ON CONFLICT (ts, station_id) DO UPDATE SET
+          water_level_cm = COALESCE(EXCLUDED.water_level_cm, measurement.water_level_cm),
+          discharge_m3s  = COALESCE(EXCLUDED.discharge_m3s,  measurement.discharge_m3s),
+          source         = EXCLUDED.source
+        WHERE
+          EXCLUDED.water_level_cm IS DISTINCT FROM measurement.water_level_cm
+          OR EXCLUDED.discharge_m3s IS DISTINCT FROM measurement.discharge_m3s
+      `;
+      totalUpserted += result.count;
+    } catch (e: unknown) {
+      errors.push(`${file.filename}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  return { fetched: files.length, upserted: totalUpserted, errors };
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const mergeTimeseries = (objListItem: any): MeasurementPoint[] => {
   const byTs = new Map<string, { H?: number; Q?: number }>();
 
   for (const series of objListItem.tsList ?? []) {
@@ -247,10 +341,10 @@ const mergeTimeseries = (objListItem: any): MeasurementPoint[] => {
     }
   }
 
-  const rows: MeasurementPoint[] = [];
+  const points: MeasurementPoint[] = [];
   for (const [ts, v] of byTs.entries()) {
     if (v.H || v.Q) {
-      rows.push({
+      points.push({
         ts,
         water_level_cm: v.H ?? null,
         discharge_m3s: v.Q ?? null,
@@ -258,8 +352,8 @@ const mergeTimeseries = (objListItem: any): MeasurementPoint[] => {
     }
   }
 
-  rows.sort((a, b) => a.ts.localeCompare(b.ts));
-  return rows;
+  points.sort((a, b) => a.ts.localeCompare(b.ts));
+  return points;
 };
 
 /**
@@ -269,7 +363,7 @@ const mergeTimeseries = (objListItem: any): MeasurementPoint[] => {
  */
 export const ingestNowMeasurements = async (
   db: Db,
-): Promise<{ files: number; rowsToUpsert: number, rowsUpserted: number; errors: string[] }> => {
+): Promise<{ files: number; rowsToUpsert: number; rowsUpserted: number; errors: string[] }> => {
   const runStartedAt = process.hrtime.bigint();
 
   const baseUrl = process.env.CHMI_NOW_INDEX ?? DEFAULT_NOW_INDEX; // končí na .../now/data/
@@ -289,21 +383,18 @@ export const ingestNowMeasurements = async (
   });
 
   const tStationMap = process.hrtime.bigint();
-  const stationRows = await db.query(
-    `
+  const stationRows = await db`
     SELECT id, id_external
     FROM station
-    WHERE id_external = ANY($1::text[])
-    `,
-    [stationExternalIds],
-  );
+    WHERE id_external = ANY(${stationExternalIds}::text[])
+  `;
 
   const stationIdByExt = new Map<string, number>();
-  for (const row of stationRows.rows) {
-    stationIdByExt.set(row.id_external, row.id);
+  for (const row of stationRows) {
+    stationIdByExt.set(row.id_external as string, row.id as number);
   }
   console.log('[ingestNow] station id map built', {
-    rows: stationRows.rowCount ?? stationRows.rows.length,
+    rows: stationRows.count,
     ms: msSince(tStationMap),
   });
 
@@ -343,8 +434,7 @@ export const ingestNowMeasurements = async (
   });
 
   const tUpsert = process.hrtime.bigint();
-  const queryResult = await db.query(
-    `
+  const queryResult = await db`
     INSERT INTO measurement (
       station_id,
       ts,
@@ -359,11 +449,11 @@ export const ingestNowMeasurements = async (
       x.discharge_m3s,
       x.source
     FROM UNNEST(
-      $1::BIGINT[],
-      $2::TIMESTAMPTZ[],
-      $3::NUMERIC[],
-      $4::NUMERIC[],
-      $5::TEXT[]
+      ${toInsert.map((r) => r.stationId)}::BIGINT[],
+      ${toInsert.map((r) => r.ts)}::TIMESTAMPTZ[],
+      ${toInsert.map((r) => r.water_level_cm ?? null)}::NUMERIC[],
+      ${toInsert.map((r) => r.discharge_m3s ?? null)}::NUMERIC[],
+      ${toInsert.map(() => 'chmi_now')}::TEXT[]
     ) AS x(station_id, ts, water_level_cm, discharge_m3s, source)
     ON CONFLICT (ts, station_id) DO UPDATE SET
       water_level_cm = COALESCE(EXCLUDED.water_level_cm, measurement.water_level_cm),
@@ -372,18 +462,10 @@ export const ingestNowMeasurements = async (
     WHERE
       EXCLUDED.water_level_cm IS DISTINCT FROM measurement.water_level_cm
       OR EXCLUDED.discharge_m3s IS DISTINCT FROM measurement.discharge_m3s
-    `,
-    [
-      toInsert.map((r) => r.stationId),
-      toInsert.map((r) => r.ts),
-      toInsert.map((r) => r.water_level_cm ?? null),
-      toInsert.map((r) => r.discharge_m3s ?? null),
-      toInsert.map(() => 'chmi_now'),
-    ],
-  );
+  `;
 
   const upsertMs = msSince(tUpsert);
-  const rowsUpserted = queryResult.rowCount ?? 0;
+  const rowsUpserted = queryResult.count;
 
   console.log('[ingestNow] upsert done', {
     rowsUpserted,
@@ -403,4 +485,74 @@ export const ingestNowMeasurements = async (
     rowsUpserted,
     errors,
   };
+};
+
+/**
+ * On-demand ingest měření jedné stanice.
+ * Zkontroluje čerstvost dat v DB — pokud jsou starší než `staleMinutes`,
+ * stáhne aktuální data z ČHMÚ a uloží do DB.
+ */
+export const ingestStationIfStale = async (
+  db: Db,
+  stationId: number,
+  staleMinutes = 15,
+): Promise<{ fresh: boolean; upserted?: number }> => {
+  // Try advisory lock — if another request is already ingesting this station, skip
+  const lockKey = 100000 + stationId; // offset to avoid collisions with other locks
+  const [{ locked }] = await db`SELECT pg_try_advisory_xact_lock(${lockKey}) AS locked`;
+  if (!locked) {
+    return { fresh: true }; // another request is handling it
+  }
+
+  const [{ max_ts }] = await db`
+    SELECT MAX(ts) AS max_ts FROM measurement WHERE station_id = ${stationId}
+  `;
+
+  if (max_ts) {
+    const ageMs = Date.now() - new Date(max_ts).getTime();
+    if (ageMs < staleMinutes * 60 * 1000) {
+      return { fresh: true };
+    }
+  }
+
+  const rows = await db`
+    SELECT id_external FROM station WHERE id = ${stationId}
+  `;
+  const idExternal: string | null = rows[0]?.id_external ?? null;
+  if (!idExternal) return { fresh: false, upserted: 0 };
+
+  const baseUrl = process.env.CHMI_NOW_INDEX ?? DEFAULT_NOW_INDEX;
+  const url = `${baseUrl}${idExternal}.json`;
+
+  const res = await fetchWithTimeout(url, 8000);
+  if (!res.ok) return { fresh: false, upserted: 0 };
+
+  const json = await res.json();
+  const obj = json?.objList?.[0];
+  if (!obj) return { fresh: false, upserted: 0 };
+
+  const points = mergeTimeseries(obj);
+  if (points.length === 0) return { fresh: false, upserted: 0 };
+
+  const result = await db`
+    INSERT INTO measurement (station_id, ts, water_level_cm, discharge_m3s, source)
+    SELECT
+      x.station_id, x.ts, x.water_level_cm, x.discharge_m3s, x.source
+    FROM UNNEST(
+      ${points.map(() => stationId)}::BIGINT[],
+      ${points.map((p) => p.ts)}::TIMESTAMPTZ[],
+      ${points.map((p) => p.water_level_cm ?? null)}::NUMERIC[],
+      ${points.map((p) => p.discharge_m3s ?? null)}::NUMERIC[],
+      ${points.map(() => 'chmi_now')}::TEXT[]
+    ) AS x(station_id, ts, water_level_cm, discharge_m3s, source)
+    ON CONFLICT (ts, station_id) DO UPDATE SET
+      water_level_cm = COALESCE(EXCLUDED.water_level_cm, measurement.water_level_cm),
+      discharge_m3s  = COALESCE(EXCLUDED.discharge_m3s,  measurement.discharge_m3s),
+      source         = EXCLUDED.source
+    WHERE
+      EXCLUDED.water_level_cm IS DISTINCT FROM measurement.water_level_cm
+      OR EXCLUDED.discharge_m3s IS DISTINCT FROM measurement.discharge_m3s
+  `;
+
+  return { fresh: false, upserted: result.count };
 };

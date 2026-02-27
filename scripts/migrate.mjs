@@ -2,7 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { Client } from 'pg';
+import postgres from 'postgres';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,25 +15,21 @@ const log = (...args) => {
 };
 
 const main = async () => {
-  const db = new Client({
-    connectionString: process.env.DATABASE_URL,
-  });
-
-  await db.connect();
+  const sql = postgres(process.env.DATABASE_URL);
 
   try {
     log('Acquiring advisory lock...');
-    await db.query('SELECT pg_advisory_lock($1)', [LOCK_ID]);
+    await sql`SELECT pg_advisory_lock(${LOCK_ID})`;
 
-    await db.query(`
-            CREATE TABLE IF NOT EXISTS schema_migrations (
-              filename TEXT PRIMARY KEY,
-              applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            )
-        `);
+    await sql`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        filename TEXT PRIMARY KEY,
+        applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
 
     const applied = new Set(
-      (await db.query('SELECT filename FROM schema_migrations')).rows.map((r) => r.filename),
+      (await sql`SELECT filename FROM schema_migrations`).map((r) => r.filename),
     );
 
     const files = fs
@@ -48,16 +44,15 @@ const main = async () => {
       }
 
       log(`Applying ${file}...`);
-      const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf8');
+      const migrationSql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf8');
 
       try {
-        await db.query('BEGIN');
-        await db.query(sql);
-        await db.query('INSERT INTO schema_migrations(filename) VALUES ($1)', [file]);
-        await db.query('COMMIT');
+        await sql.begin(async (tx) => {
+          await tx.unsafe(migrationSql);
+          await tx`INSERT INTO schema_migrations(filename) VALUES (${file})`;
+        });
         log(`Applied ${file}`);
       } catch (err) {
-        await db.query('ROLLBACK');
         throw new Error(`Migration ${file} failed:\n${err.message}`);
       }
     }
@@ -65,8 +60,8 @@ const main = async () => {
     log('Migrations complete');
   } finally {
     log('Releasing advisory lock');
-    await db.query('SELECT pg_advisory_unlock($1)', [LOCK_ID]);
-    await db.end();
+    await sql`SELECT pg_advisory_unlock(${LOCK_ID})`;
+    await sql.end();
   }
 };
 

@@ -5,30 +5,36 @@ import Divider from '@mui/material/Divider';
 import Link from '@mui/material/Link';
 import LoginForm from '@/src/components/auth/LoginForm';
 import OAuthButtons from '@/src/components/auth/OAuthButtons';
+import { getEnabledOAuthProviders } from '@/src/lib/auth/providers';
 
 export const metadata: Metadata = {
   title: 'Přihlášení — Vodní stav',
 };
 
-const LoginPage = () => (
-  <Box sx={{ maxWidth: 400, mx: 'auto', mt: 4 }}>
-    <Typography variant="h4" component="h1" gutterBottom>
-      Přihlášení
-    </Typography>
+const LoginPage = () => {
+  const enabledProviders = getEnabledOAuthProviders();
+  const hasOAuth = enabledProviders.length > 0;
 
-    <OAuthButtons />
+  return (
+    <Box sx={{ maxWidth: 400, mx: 'auto', mt: 4 }}>
+      <Typography variant="h4" component="h1" gutterBottom>
+        Přihlášení
+      </Typography>
 
-    <Divider sx={{ my: 3 }}>nebo</Divider>
+      {hasOAuth && <OAuthButtons enabledProviders={enabledProviders} />}
 
-    <LoginForm />
+      {hasOAuth && <Divider sx={{ my: 3 }}>nebo</Divider>}
 
-    <Typography variant="body2" sx={{ mt: 3, textAlign: 'center' }}>
-      Nemáte účet?{' '}
-      <Link href="/registrace" underline="hover">
-        Zaregistrujte se
-      </Link>
-    </Typography>
-  </Box>
-);
+      <LoginForm />
+
+      <Typography variant="body2" sx={{ mt: 3, textAlign: 'center' }}>
+        Nemáte účet?{' '}
+        <Link href="/registrace" underline="hover">
+          Zaregistrujte se
+        </Link>
+      </Typography>
+    </Box>
+  );
+};
 
 export default LoginPage;

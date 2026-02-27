@@ -5,30 +5,36 @@ import Divider from '@mui/material/Divider';
 import Link from '@mui/material/Link';
 import RegisterForm from '@/src/components/auth/RegisterForm';
 import OAuthButtons from '@/src/components/auth/OAuthButtons';
+import { getEnabledOAuthProviders } from '@/src/lib/auth/providers';
 
 export const metadata: Metadata = {
   title: 'Registrace — Vodní stav',
 };
 
-const RegisterPage = () => (
-  <Box sx={{ maxWidth: 400, mx: 'auto', mt: 4 }}>
-    <Typography variant="h4" component="h1" gutterBottom>
-      Registrace
-    </Typography>
+const RegisterPage = () => {
+  const enabledProviders = getEnabledOAuthProviders();
+  const hasOAuth = enabledProviders.length > 0;
 
-    <OAuthButtons />
+  return (
+    <Box sx={{ maxWidth: 400, mx: 'auto', mt: 4 }}>
+      <Typography variant="h4" component="h1" gutterBottom>
+        Registrace
+      </Typography>
 
-    <Divider sx={{ my: 3 }}>nebo</Divider>
+      {hasOAuth && <OAuthButtons enabledProviders={enabledProviders} />}
 
-    <RegisterForm />
+      {hasOAuth && <Divider sx={{ my: 3 }}>nebo</Divider>}
 
-    <Typography variant="body2" sx={{ mt: 3, textAlign: 'center' }}>
-      Už máte účet?{' '}
-      <Link href="/prihlaseni" underline="hover">
-        Přihlaste se
-      </Link>
-    </Typography>
-  </Box>
-);
+      <RegisterForm />
+
+      <Typography variant="body2" sx={{ mt: 3, textAlign: 'center' }}>
+        Už máte účet?{' '}
+        <Link href="/prihlaseni" underline="hover">
+          Přihlaste se
+        </Link>
+      </Typography>
+    </Box>
+  );
+};
 
 export default RegisterPage;

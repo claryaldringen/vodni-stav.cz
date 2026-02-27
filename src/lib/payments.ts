@@ -22,21 +22,21 @@ export const createPayment = async (
   `;
   if (existing) return existing as unknown as Payment;
 
-  // Two-step: insert with placeholder, then set VS based on generated ID
+  const appId = requireEnv('APP_ID');
+
   const [payment] = await sql`
-    WITH ins AS (
-      INSERT INTO payment (user_id, amount, vs, plan)
-      VALUES (${userId}, ${amount}, 'tmp_' || gen_random_uuid(), ${plan})
-      RETURNING id
-    )
-    UPDATE payment
-    SET vs = ${requireEnv('APP_ID')} || LPAD(ins.id::TEXT, 8, '0')
-    FROM ins
-    WHERE payment.id = ins.id
-    RETURNING payment.*
+    INSERT INTO payment (user_id, amount, vs, plan)
+    VALUES (${userId}, ${amount}, 'placeholder', ${plan})
+    RETURNING *
   `;
 
-  return payment as unknown as Payment;
+  const vs = appId + String(payment.id).padStart(8, '0');
+
+  const [updated] = await sql`
+    UPDATE payment SET vs = ${vs} WHERE id = ${payment.id} RETURNING *
+  `;
+
+  return updated as unknown as Payment;
 };
 
 export const getActiveSubscription = async (

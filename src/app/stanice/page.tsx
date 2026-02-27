@@ -1,9 +1,12 @@
 import Typography from '@mui/material/Typography';
+import { unstable_cache } from 'next/cache';
 import { fetchStations } from '@/src/lib/queries';
 import StationPicker from '@/src/components/station/StationPicker';
 
+const getCachedStations = unstable_cache(fetchStations, ['stations'], { revalidate: 600 });
+
 const StationsPage = async () => {
-  const stations = await fetchStations();
+  const stations = await getCachedStations();
 
   return (
     <>

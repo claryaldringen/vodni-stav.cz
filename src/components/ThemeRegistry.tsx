@@ -1,6 +1,7 @@
 'use client';
 
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
+import { AppRouterCacheProvider } from '@mui/material-nextjs/v15-appRouter';
 import type { ReactNode } from 'react';
 
 const theme = createTheme({
@@ -18,10 +19,12 @@ interface ThemeRegistryProps {
 }
 
 const ThemeRegistry = ({ children }: ThemeRegistryProps) => (
-  <ThemeProvider theme={theme}>
-    <CssBaseline />
-    {children}
-  </ThemeProvider>
+  <AppRouterCacheProvider>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      {children}
+    </ThemeProvider>
+  </AppRouterCacheProvider>
 );
 
 export default ThemeRegistry;

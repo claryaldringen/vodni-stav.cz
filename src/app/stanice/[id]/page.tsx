@@ -24,12 +24,8 @@ const StationPage = async ({ params }: PageProps) => {
   const station = await fetchStationBySlug(id);
   if (!station) notFound();
 
-  try {
-    const db = await connectDb();
-    await ingestStationIfStale(db, station.id);
-  } catch {
-    // best-effort — zobrazíme data z DB i když on-demand ingest selže
-  }
+  // Fire-and-forget — neblokuje render, data se zobrazí z DB
+  connectDb().then((db) => ingestStationIfStale(db, station.id)).catch(() => {});
 
   const [measurements, stats] = await Promise.all([
     fetchMeasurements(station.id, DEFAULT_PERIOD),

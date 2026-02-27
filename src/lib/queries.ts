@@ -254,7 +254,7 @@ export const fetchMeasurementStats = async (
 
   const rows = await sql<StatsRow[]>`
     WITH filtered AS (
-      SELECT water_level_cm, discharge_m3s
+      SELECT ts, water_level_cm, discharge_m3s
       FROM measurement
       WHERE station_id = ${stationId}
         ${whereTime}
@@ -263,9 +263,7 @@ export const fetchMeasurementStats = async (
       SELECT
         ABS(water_level_cm - LAG(water_level_cm) OVER (ORDER BY ts)) AS wl_diff,
         ABS(discharge_m3s - LAG(discharge_m3s) OVER (ORDER BY ts)) AS q_diff
-      FROM measurement
-      WHERE station_id = ${stationId}
-        ${whereTime}
+      FROM filtered
     )
     SELECT
       MIN(f.water_level_cm)::float AS wl_min,

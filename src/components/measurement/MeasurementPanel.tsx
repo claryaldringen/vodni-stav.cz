@@ -8,11 +8,13 @@ import CardContent from '@mui/material/CardContent';
 import Typography from '@mui/material/Typography';
 import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
+import dynamic from 'next/dynamic';
 import PeriodSelector from './PeriodSelector';
 import CustomDatePicker from './CustomDatePicker';
 import ViewToggle, { type ViewMode } from './ViewToggle';
-import MeasurementChart from './MeasurementChart';
 import MeasurementTable from './MeasurementTable';
+
+const MeasurementChart = dynamic(() => import('./MeasurementChart'), { ssr: false });
 import MeasurementStatsCard from './MeasurementStatsCard';
 import { formatWaterLevel, formatDischarge } from '@/src/lib/format';
 import type { DateRange } from '@/src/lib/date-range';

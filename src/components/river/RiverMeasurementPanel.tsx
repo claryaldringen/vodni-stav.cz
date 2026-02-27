@@ -8,12 +8,14 @@ import CardContent from '@mui/material/CardContent';
 import Typography from '@mui/material/Typography';
 import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
+import dynamic from 'next/dynamic';
 import GranularitySelector from './GranularitySelector';
 import RiverPeriodSelector from './RiverPeriodSelector';
 import CustomDatePicker from '../measurement/CustomDatePicker';
 import ViewToggle, { type ViewMode } from '../measurement/ViewToggle';
-import MeasurementChart from '../measurement/MeasurementChart';
 import MeasurementTable from '../measurement/MeasurementTable';
+
+const MeasurementChart = dynamic(() => import('../measurement/MeasurementChart'), { ssr: false });
 import MeasurementStatsCard from '../measurement/MeasurementStatsCard';
 import { getDefaultPeriod } from '@/src/lib/granularity';
 import { granularityForRange } from '@/src/lib/date-range';

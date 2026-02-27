@@ -66,7 +66,9 @@ export const GET = async (_req: Request, { params }: { params: Promise<{ id: str
   if (meta.geometry && meta.geometry_fetched_at) {
     const fetchedAt = new Date(meta.geometry_fetched_at as string).getTime();
     if (Date.now() - fetchedAt < CACHE_MAX_AGE_MS) {
-      return NextResponse.json(meta.geometry);
+      return NextResponse.json(meta.geometry, {
+        headers: { 'Cache-Control': 'public, s-maxage=2592000, stale-while-revalidate=86400' },
+      });
     }
   }
 
@@ -96,7 +98,9 @@ export const GET = async (_req: Request, { params }: { params: Promise<{ id: str
       WHERE id = ${riverId}
     `;
 
-    return NextResponse.json(geojson);
+    return NextResponse.json(geojson, {
+      headers: { 'Cache-Control': 'public, s-maxage=2592000, stale-while-revalidate=86400' },
+    });
   } catch {
     return NextResponse.json({ error: 'Nepodařilo se načíst geometrii toku.' }, { status: 502 });
   }

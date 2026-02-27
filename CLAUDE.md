@@ -70,3 +70,14 @@ Dev prostředí používá lokální PostgreSQL 17 (`postgres://martinzadrazil@l
 ## Proměnné prostředí
 
 Viz `.env.example`. Povinné: `DATABASE_URL`, `CHMI_META1`, `CHMI_NOW_INDEX`, `CRON_SECRET`. Volitelné: `ONLY_STATIONS` (čárkami oddělený filtr), `FETCH_DELAY_MS`.
+
+## Workflow pravidla
+
+Po každé změně kódu:
+
+1. Spusť `yarn lint` a oprav všechny chyby
+2. Spusť `yarn typecheck` a oprav TypeScript chyby
+3. Ke každému přidání nebo změně logiky se snaž dopsat testy
+4. Pokud existují testy pro změněnou oblast, spusť je
+5. Po vytvoření migrace ji automaticky spusť nad localhost databází: `yarn migrate`
+6. Považuj úkol za hotový až když všechny předchozí kroky projdou čistě.

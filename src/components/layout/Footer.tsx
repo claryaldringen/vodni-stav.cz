@@ -14,6 +14,19 @@ const Footer = () => (
     <Typography variant="caption" display="block" textAlign="center" color="text.secondary" mt={0.5}>
       &copy; {new Date().getFullYear()} vodnistav.cz
     </Typography>
+    <Typography variant="caption" display="block" textAlign="center" color="text.secondary" mt={1}>
+      <MuiLink href="/zasady-ochrany-soukromi" color="inherit" underline="hover">
+        Zásady ochrany soukromí
+      </MuiLink>
+      {' | '}
+      <MuiLink href="/o-projektu" color="inherit" underline="hover">
+        O projektu
+      </MuiLink>
+      {' | '}
+      <MuiLink href="/kontakt" color="inherit" underline="hover">
+        Kontakt
+      </MuiLink>
+    </Typography>
   </Box>
 );
 

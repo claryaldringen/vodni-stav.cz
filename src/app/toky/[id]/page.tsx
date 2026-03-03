@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
@@ -23,6 +24,28 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+export const generateMetadata = async ({ params }: PageProps): Promise<Metadata> => {
+  const { id } = await params;
+  const riverId = Number(id);
+  if (Number.isNaN(riverId)) return {};
+
+  const river = await fetchRiverById(riverId);
+  if (!river) return {};
+
+  const title = `${river.name} — průtoky a vodní stavy`;
+  const description = `Průměrné průtoky a hladiny na řece ${river.name}. ${river.station_count} měřicích stanic. Data z ČHMÚ.`;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: 'article',
+    },
+  };
+};
+
 const RiverPage = async ({ params }: PageProps) => {
   const { id } = await params;
   const riverId = Number(id);
@@ -40,6 +63,17 @@ const RiverPage = async ({ params }: PageProps) => {
   ]);
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'BodyOfWater',
+            name: river.name,
+            description: `Řeka ${river.name} — ${river.station_count} měřicích stanic`,
+          }),
+        }}
+      />
       <Button href="/" startIcon={<ArrowBackIcon />} size="small" sx={{ mb: 2 }}>
         Zpět na seznam toků
       </Button>

@@ -15,9 +15,24 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: 'Vodní stav — aktuální hladiny a průtoky řek v ČR',
+  metadataBase: new URL('https://vodnistav.cz'),
+  title: {
+    default: 'Vodní stav — aktuální hladiny a průtoky řek v ČR',
+    template: '%s | Vodní stav',
+  },
   description:
     'Aktuální vodní stavy a průtoky na řekách v České republice. Data z ČHMÚ aktualizovaná denně.',
+  openGraph: {
+    title: 'Vodní stav — aktuální hladiny a průtoky řek v ČR',
+    description:
+      'Aktuální vodní stavy a průtoky na řekách v České republice. Data z ČHMÚ aktualizovaná denně.',
+    locale: 'cs_CZ',
+    type: 'website',
+    siteName: 'Vodní stav',
+  },
+  twitter: {
+    card: 'summary',
+  },
 };
 
 const RootLayout = ({
@@ -27,6 +42,17 @@ const RootLayout = ({
 }>) => (
   <html lang="cs">
     <body className={geistSans.variable}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'WebSite',
+            name: 'Vodní stav',
+            url: 'https://vodnistav.cz',
+          }),
+        }}
+      />
       <SessionWrapper>
         <ThemeRegistry>
           <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>

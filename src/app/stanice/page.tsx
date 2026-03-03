@@ -1,7 +1,14 @@
+import type { Metadata } from 'next';
 import Typography from '@mui/material/Typography';
 import { unstable_cache } from 'next/cache';
 import { fetchStations } from '@/src/lib/queries';
 import StationPicker from '@/src/components/station/StationPicker';
+
+export const metadata: Metadata = {
+  title: 'Vodní stanice v ČR',
+  description:
+    'Seznam měřicích stanic vodních stavů a průtoků v České republice. Vyberte stanici pro aktuální data z ČHMÚ.',
+};
 
 const getCachedStations = unstable_cache(fetchStations, ['stations'], { revalidate: 600 });
 

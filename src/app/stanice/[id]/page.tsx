@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
@@ -18,6 +19,30 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+export const generateMetadata = async ({ params }: PageProps): Promise<Metadata> => {
+  const { id } = await params;
+  const station = await fetchStationBySlug(id);
+  if (!station) return {};
+
+  const title = station.river_name
+    ? `${station.name} (${station.river_name}) — vodní stav`
+    : `${station.name} — vodní stav`;
+
+  const description = station.river_name
+    ? `Aktuální vodní stav a průtok stanice ${station.name} na řece ${station.river_name}. Data z ČHMÚ.`
+    : `Aktuální vodní stav a průtok stanice ${station.name}. Data z ČHMÚ.`;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: 'article',
+    },
+  };
+};
+
 const StationPage = async ({ params }: PageProps) => {
   const { id } = await params;
 
@@ -34,6 +59,27 @@ const StationPage = async ({ params }: PageProps) => {
 
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'Place',
+            name: station.name,
+            ...(station.river_name && {
+              description: `Měřicí stanice na řece ${station.river_name}`,
+            }),
+            ...(station.lat &&
+              station.lon && {
+                geo: {
+                  '@type': 'GeoCoordinates',
+                  latitude: station.lat,
+                  longitude: station.lon,
+                },
+              }),
+          }),
+        }}
+      />
       <Button href="/stanice" startIcon={<ArrowBackIcon />} size="small" sx={{ mb: 2 }}>
         Zpět na seznam stanic
       </Button>

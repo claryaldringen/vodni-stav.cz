@@ -116,27 +116,24 @@ export const fetchMeasurements = async (
 export const fetchRivers = async (): Promise<River[]> => {
   const sql = await connectDb();
   return sql<River[]>`
+    WITH latest_per_station AS (
+      SELECT DISTINCT ON (m.station_id)
+        m.station_id,
+        m.discharge_m3s
+      FROM measurement m
+      WHERE m.discharge_m3s IS NOT NULL
+      ORDER BY m.station_id, m.ts DESC
+    )
     SELECT
       r.id,
       r.name,
       b.name AS basin_name,
       COUNT(s.id)::int AS station_count,
-      (
-        SELECT ROUND(AVG(latest.discharge_m3s)::numeric, 2)::float
-        FROM station s2
-        CROSS JOIN LATERAL (
-          SELECT m.discharge_m3s
-          FROM measurement m
-          WHERE m.station_id = s2.id
-            AND m.discharge_m3s IS NOT NULL
-          ORDER BY m.ts DESC
-          LIMIT 1
-        ) latest
-        WHERE s2.river_id = r.id AND s2.is_active = true
-      ) AS latest_avg_discharge_m3s
+      ROUND(AVG(lps.discharge_m3s)::numeric, 2)::float AS latest_avg_discharge_m3s
     FROM river r
     LEFT JOIN basin b ON b.id = r.basin_id
     JOIN station s ON s.river_id = r.id AND s.is_active = true
+    LEFT JOIN latest_per_station lps ON lps.station_id = s.id
     GROUP BY r.id, r.name, b.name
     ORDER BY r.name`;
 };

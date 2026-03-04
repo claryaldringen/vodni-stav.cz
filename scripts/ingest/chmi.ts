@@ -4,6 +4,7 @@ import { recordRunFinish, recordRunStart } from '@/scripts/ingest/utils';
 
 const DEFAULT_META1 = 'https://opendata.chmi.cz/hydrology/now/metadata/meta1.json';
 const DEFAULT_NOW_INDEX = 'https://opendata.chmi.cz/hydrology/now/data/';
+const CONCURRENCY_LIMIT = 20;
 
 export const fetchWithTimeout = async (url: string, ms: number) => {
   const ctrl = new AbortController();
@@ -15,7 +16,24 @@ export const fetchWithTimeout = async (url: string, ms: number) => {
   }
 };
 
-const parseIndexHtmlForJsonFiles = (html: string): string[] => {
+export const runWithConcurrency = async <T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> => {
+  const results: R[] = [];
+  let idx = 0;
+  const next = async (): Promise<void> => {
+    const i = idx++;
+    if (i >= items.length) return;
+    results[i] = await fn(items[i]);
+    return next();
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => next()));
+  return results;
+};
+
+export const parseIndexHtmlForJsonFiles = (html: string): string[] => {
   const out: string[] = [];
   const re = /href="([^"]+\.json)"/g;
   let m: RegExpExecArray | null;
@@ -219,7 +237,6 @@ type MeasurementPoint = {
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const mergeHistoricalTimeseries = (json: any): MeasurementPoint[] => {
   const byTs = new Map<string, { H?: number; Q?: number }>();
 
@@ -236,12 +253,10 @@ export const mergeHistoricalTimeseries = (json: any): MeasurementPoint[] => {
 
   const points: MeasurementPoint[] = [];
   for (const [ts, v] of byTs.entries()) {
-    if (v.H || v.Q) {
-      points.push({
-        ts,
-        water_level_cm: v.H ?? null,
-        discharge_m3s: v.Q ?? null,
-      });
+    const h = v.H != null && isFinite(v.H) ? v.H : null;
+    const q = v.Q != null && isFinite(v.Q) ? v.Q : null;
+    if (h != null || q != null) {
+      points.push({ ts, water_level_cm: h, discharge_m3s: q });
     }
   }
 
@@ -343,12 +358,10 @@ export const mergeTimeseries = (objListItem: any): MeasurementPoint[] => {
 
   const points: MeasurementPoint[] = [];
   for (const [ts, v] of byTs.entries()) {
-    if (v.H || v.Q) {
-      points.push({
-        ts,
-        water_level_cm: v.H ?? null,
-        discharge_m3s: v.Q ?? null,
-      });
+    const h = v.H != null && isFinite(v.H) ? v.H : null;
+    const q = v.Q != null && isFinite(v.Q) ? v.Q : null;
+    if (h != null || q != null) {
+      points.push({ ts, water_level_cm: h, discharge_m3s: q });
     }
   }
 
@@ -400,29 +413,39 @@ export const ingestNowMeasurements = async (
 
   const tFetchAll = process.hrtime.bigint();
 
-  const promises = stationExternalIds.map(async (extId) => {
-    const url = `${baseUrl}${extId}.json`;
-    const res = await fetchWithTimeout(url, 8000);
-    if (res.status != 200) {
-      return { error: `Fetch of ${url} ends with status ${res.status}.`, rows: [] };
+  const fetchStation = async (extId: string) => {
+    try {
+      const url = `${baseUrl}${extId}.json`;
+      const res = await fetchWithTimeout(url, 8000);
+      if (res.status !== 200) {
+        return { error: `Fetch of ${url} ends with status ${res.status}.`, rows: [] };
+      }
+      const json = await res.json();
+      const obj = json?.objList?.[0];
+      if (obj == null) {
+        return { error: `File ${url} has no object.`, rows: [] };
+      }
+      const points = mergeTimeseries(obj);
+      const stationId = stationIdByExt.get(extId) ?? null;
+      return {
+        error: null,
+        rows: points
+          .filter(
+            (p) =>
+              (p.water_level_cm === null || isFinite(p.water_level_cm)) &&
+              (p.discharge_m3s === null || isFinite(p.discharge_m3s)),
+          )
+          .map((point) => ({
+            stationId,
+            ...point,
+          })),
+      };
+    } catch (e: unknown) {
+      return { error: `${extId}: ${e instanceof Error ? e.message : String(e)}`, rows: [] };
     }
-    const json = await res.json();
-    const obj = json?.objList?.[0];
-    if (obj == null) {
-      return { error: `File ${url} has no object.`, rows: [] };
-    }
-    const points = mergeTimeseries(obj);
-    const stationId = stationIdByExt.get(extId) ?? null;
-    return {
-      error: null,
-      rows: points.map((point) => ({
-        stationId,
-        ...point,
-      })),
-    };
-  });
+  };
 
-  const batches = await Promise.all(promises);
+  const batches = await runWithConcurrency(stationExternalIds, CONCURRENCY_LIMIT, fetchStation);
 
   const allRows = batches.map((batch) => batch.rows);
   const errors = batches.map((batch) => batch.error).filter((err) => err != null);

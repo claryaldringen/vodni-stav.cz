@@ -35,6 +35,9 @@ export const generateMetadata = async ({ params }: PageProps): Promise<Metadata>
   return {
     title,
     description,
+    alternates: {
+      canonical: `https://vodnistav.cz/stanice/${id}`,
+    },
     openGraph: {
       title,
       description,

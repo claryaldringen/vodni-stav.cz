@@ -2,7 +2,7 @@ import { connectDb } from '@/src/lib/db';
 import { ingestNowMeasurements, runDiscoverIfNeeded } from './chmi.js';
 import { recordRunFinish, recordRunStart } from '@/scripts/ingest/utils';
 
-const log = (...args: any[]) => {
+const log = (...args: unknown[]) => {
   console.log(new Date().toISOString(), ...args);
 };
 
@@ -26,8 +26,9 @@ const main = async () => {
     console.log('ingest:done', Date.now() - t0, now);
     await recordRunFinish(db, runId, 'ok', now);
     log('Ingest done:', now);
-  } catch (e: any) {
-    await recordRunFinish(db, runId, 'error', { error: String(e?.message ?? e) });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await recordRunFinish(db, runId, 'error', { error: msg });
     throw e;
   }
 };

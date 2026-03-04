@@ -129,11 +129,18 @@ const CustomDatePicker = ({
   // Fetch dostupných dnů pro Den tab
   useEffect(() => {
     if (tab !== TAB_DAY || !anchorEl || !availability) return;
-    setLoadingDays(true);
-    setAvailableDays([]);
-    fetch(`${availabilityUrl}?year=${dayYear}&month=${dayMonth}`)
+    let cancelled = false;
+    const url = `${availabilityUrl}?year=${dayYear}&month=${dayMonth}`;
+    // Use microtask to schedule setState after effect setup
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setLoadingDays(true);
+      setAvailableDays([]);
+    });
+    fetch(url)
       .then((r) => r.json())
       .then((data: { days: number[] }) => {
+        if (cancelled) return;
         const days = data.days ?? [];
         setAvailableDays(days);
         setDayDay((prev) => {
@@ -142,7 +149,12 @@ const CustomDatePicker = ({
         });
       })
       .catch(() => {})
-      .finally(() => setLoadingDays(false));
+      .finally(() => {
+        if (!cancelled) setLoadingDays(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [tab, dayYear, dayMonth, anchorEl, availability, availabilityUrl]);
 
   // Computed items pro selecty

@@ -3,21 +3,25 @@ import { validateApiKey, resolveApiKeyMode } from '../auth/api-key';
 import { apiError } from './errors';
 import { checkRateLimit } from './rate-limit';
 
-export const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-API-Key',
+const ALLOWED_ORIGINS = new Set([
+  'https://vodnistav.cz',
+  'https://www.vodnistav.cz',
+]);
+
+const getCorsOrigin = (request?: NextRequest): string => {
+  const origin = request?.headers.get('origin') ?? '';
+  return ALLOWED_ORIGINS.has(origin) ? origin : 'https://vodnistav.cz';
 };
 
-export const withCors = (response: NextResponse): NextResponse => {
-  for (const [key, value] of Object.entries(corsHeaders)) {
-    response.headers.set(key, value);
-  }
+export const withCors = (response: NextResponse, request?: NextRequest): NextResponse => {
+  response.headers.set('Access-Control-Allow-Origin', getCorsOrigin(request));
+  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, X-API-Key');
   return response;
 };
 
-export const handleOptions = () =>
-  withCors(new NextResponse(null, { status: 204 }));
+export const handleOptions = (request?: NextRequest) =>
+  withCors(new NextResponse(null, { status: 204 }), request);
 
 export const requireApiKey = async (
   request: NextRequest,

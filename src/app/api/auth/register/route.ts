@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { hash } from 'bcryptjs';
 import { connectDb } from '@/src/lib/db';
+import { checkRateLimit } from '@/src/lib/api/rate-limit';
 
 export const POST = async (request: NextRequest) => {
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+  const { allowed } = checkRateLimit(`register:${ip}`);
+  if (!allowed) {
+    return NextResponse.json(
+      { error: 'Příliš mnoho pokusů. Zkuste to později.' },
+      { status: 429 },
+    );
+  }
+
   const body = await request.json();
   const { name, email, password } = body as {
     name?: string;

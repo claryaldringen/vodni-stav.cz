@@ -38,6 +38,9 @@ export const generateMetadata = async ({ params }: PageProps): Promise<Metadata>
   return {
     title,
     description,
+    alternates: {
+      canonical: `https://vodnistav.cz/toky/${id}`,
+    },
     openGraph: {
       title,
       description,

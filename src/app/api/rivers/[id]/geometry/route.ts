@@ -72,8 +72,9 @@ export const GET = async (_req: Request, { params }: { params: Promise<{ id: str
     }
   }
 
-  // Fetch from Overpass API
-  const query = `[out:json][timeout:25];(relation["waterway"="river"]["name"="${river.name}"];way["waterway"="river"]["name"="${river.name}"];way["waterway"="stream"]["name"="${river.name}"];);out geom;`;
+  // Escape river name for Overpass QL (prevent injection)
+  const safeName = (river.name as string).replace(/[\\"]/g, '\\$&');
+  const query = `[out:json][timeout:25];(relation["waterway"="river"]["name"="${safeName}"];way["waterway"="river"]["name"="${safeName}"];way["waterway"="stream"]["name"="${safeName}"];);out geom;`;
 
   try {
     const res = await fetch('https://overpass-api.de/api/interpreter', {

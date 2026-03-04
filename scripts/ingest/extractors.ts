@@ -50,8 +50,10 @@ export const extractStationMetaFromMeta1Row = (row: Meta1Row): StationMeta | nul
       ? row['STREAM_NAME'].trim()
       : null;
 
-  const lat = typeof row['GEOGR1'] === 'number' ? row['GEOGR1'] : null;
-  const lon = typeof row['GEOGR2'] === 'number' ? row['GEOGR2'] : null;
+  const rawLat = typeof row['GEOGR1'] === 'number' ? row['GEOGR1'] : null;
+  const rawLon = typeof row['GEOGR2'] === 'number' ? row['GEOGR2'] : null;
+  const lat = rawLat !== null && isFinite(rawLat) && rawLat >= -90 && rawLat <= 90 ? rawLat : null;
+  const lon = rawLon !== null && isFinite(rawLon) && rawLon >= -180 && rawLon <= 180 ? rawLon : null;
 
   const isForecast = row['ISFORECAST'] === 0 ? false : row['ISFORECAST'] === 1 ? true : null;
 

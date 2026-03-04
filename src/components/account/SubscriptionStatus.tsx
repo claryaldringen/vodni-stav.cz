@@ -15,20 +15,23 @@ const SubscriptionStatus = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const fetchSubscription = useCallback(async () => {
-    setLoading(true);
-    const res = await fetch('/api/payments/subscription');
-    const data = await res.json();
-    setSubscription(data.active ? data : null);
-    setLoading(false);
+  const doFetch = useCallback(() => {
+    fetch('/api/payments/subscription')
+      .then((res) => res.json())
+      .then((data) => {
+        setSubscription(data.active ? data : null);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
-    fetchSubscription();
-  }, [fetchSubscription]);
+    doFetch();
+  }, [doFetch]);
 
   const handlePaid = () => {
-    fetchSubscription();
+    setLoading(true);
+    doFetch();
   };
 
   const formatDate = (iso: string) =>

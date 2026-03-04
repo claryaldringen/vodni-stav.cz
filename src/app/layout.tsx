@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Script from 'next/script';
 import { Geist } from 'next/font/google';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
@@ -12,6 +13,7 @@ import './globals.css';
 const geistSans = Geist({
   variable: '--font-geist-sans',
   subsets: ['latin'],
+  display: 'swap',
 });
 
 export const metadata: Metadata = {
@@ -22,6 +24,9 @@ export const metadata: Metadata = {
   },
   description:
     'Aktuální vodní stavy a průtoky na řekách v České republice. Data z ČHMÚ aktualizovaná denně.',
+  alternates: {
+    canonical: 'https://vodnistav.cz',
+  },
   openGraph: {
     title: 'Vodní stav — aktuální hladiny a průtoky řek v ČR',
     description:
@@ -41,16 +46,15 @@ const RootLayout = ({
   children: React.ReactNode;
 }>) => (
   <html lang="cs">
-    <head>
+    <head />
+    <body className={geistSans.variable}>
       {process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID && (
-        <script
-          async
+        <Script
           src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID.trim()}`}
+          strategy="lazyOnload"
           crossOrigin="anonymous"
         />
       )}
-    </head>
-    <body className={geistSans.variable}>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{

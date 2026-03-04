@@ -17,7 +17,7 @@ const HISTORICAL_BATCH_SIZE = 50;
 export const dailyIngest = inngest.createFunction(
   {
     id: 'daily-ingest',
-    retries: 1,
+    retries: 3,
   },
   [{ cron: 'TZ=UTC 55 23 * * *' }, { event: 'ingest/manual' }],
   async ({ step }) => {
@@ -48,7 +48,7 @@ export const dailyIngest = inngest.createFunction(
 export const historicalIngest = inngest.createFunction(
   {
     id: 'historical-ingest',
-    retries: 1,
+    retries: 3,
   },
   [{ cron: 'TZ=UTC 0 4 * * *' }, { event: 'ingest/historical' }],
   async ({ step }) => {

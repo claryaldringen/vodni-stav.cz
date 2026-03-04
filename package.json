@@ -2,6 +2,7 @@
   "name": "vodnistav.cz",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "yarn@4.6.0",
   "scripts": {
     "migrate": "node scripts/migrate.mjs",
     "dev": "next dev",

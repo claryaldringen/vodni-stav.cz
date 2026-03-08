@@ -82,8 +82,8 @@ const MeasurementChart = ({ measurements }: MeasurementChartProps) => {
             />
           )}
           <Tooltip
-            formatter={(value?: number, name?: string) => {
-              if (value === undefined) return ['–', name ?? ''];
+            formatter={(value?: number | string, name?: string) => {
+              if (typeof value !== 'number') return ['–', name ?? ''];
               if (name === 'Hladina') return [`${formatNumber(value, 0)} cm`, name];
               return [`${formatNumber(value, 2)} m³/s`, name ?? ''];
             }}

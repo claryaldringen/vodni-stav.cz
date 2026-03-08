@@ -9,6 +9,7 @@ import { getEnabledOAuthProviders } from '@/src/lib/auth/providers';
 
 export const metadata: Metadata = {
   title: 'Přihlášení — Vodní stav',
+  description: 'Přihlášení do služby vodnistav.cz — agregátor hydrologických dat z ČHMÚ.',
 };
 
 const LoginPage = () => {

@@ -12,9 +12,13 @@ export const GET = async (request: NextRequest) => {
 
   if (authResult.mode === 'test') {
     const stations = mockStations();
-    return withCors(apiSuccess(stations, { count: stations.length }));
+    const res = withCors(apiSuccess(stations, { count: stations.length }));
+    res.headers.set('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=3600');
+    return res;
   }
 
   const stations = await fetchStations();
-  return withCors(apiSuccess(stations, { count: stations.length }));
+  const res = withCors(apiSuccess(stations, { count: stations.length }));
+  res.headers.set('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=3600');
+  return res;
 };

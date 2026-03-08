@@ -35,7 +35,7 @@ const yoga = createYoga({
     },
   ],
   cors: {
-    origin: '*',
+    origin: ['https://vodnistav.cz', 'https://www.vodnistav.cz'],
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'X-API-Key'],
   },

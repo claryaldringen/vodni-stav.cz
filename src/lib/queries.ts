@@ -45,7 +45,7 @@ export const fetchStationById = async (id: number): Promise<Station | null> => {
 
 // Cached slug → station id map (avoids loading all stations on every page view)
 let slugCache: { map: Map<string, number>; cachedAt: number } | null = null;
-const SLUG_CACHE_TTL_MS = 60_000; // 1 minute
+const SLUG_CACHE_TTL_MS = 3_600_000; // 1 hour
 
 const getSlugMap = async (): Promise<Map<string, number>> => {
   const now = Date.now();
@@ -156,6 +156,41 @@ export const fetchRiverById = async (
   return rows[0] ?? null;
 };
 
+// Cached slug → river id map (same pattern as stations)
+let riverSlugCache: { map: Map<string, number>; cachedAt: number } | null = null;
+const RIVER_SLUG_CACHE_TTL_MS = 3_600_000; // 1 hour
+
+const getRiverSlugMap = async (): Promise<Map<string, number>> => {
+  const now = Date.now();
+  if (riverSlugCache && now - riverSlugCache.cachedAt < RIVER_SLUG_CACHE_TTL_MS) {
+    return riverSlugCache.map;
+  }
+
+  const sql = await connectDb();
+  const rows = await sql<{ id: number; name: string }[]>`
+    SELECT r.id, r.name
+    FROM river r
+    JOIN station s ON s.river_id = r.id AND s.is_active = true
+    GROUP BY r.id, r.name
+  `;
+
+  const map = new Map<string, number>();
+  for (const row of rows) {
+    map.set(slugify(row.name), row.id);
+  }
+  riverSlugCache = { map, cachedAt: now };
+  return map;
+};
+
+export const fetchRiverBySlug = async (
+  slug: string,
+): Promise<(Pick<River, 'id' | 'name' | 'basin_name' | 'station_count'>) | null> => {
+  const map = await getRiverSlugMap();
+  const riverId = map.get(slug);
+  if (riverId === undefined) return null;
+  return fetchRiverById(riverId);
+};
+
 export const fetchRiverMeasurements = async (
   riverId: number,
   granularity: Granularity,
@@ -258,22 +293,23 @@ export const fetchMeasurementStats = async (
     ),
     changes AS (
       SELECT
+        water_level_cm AS wl,
+        discharge_m3s AS q,
         ABS(water_level_cm - LAG(water_level_cm) OVER (ORDER BY ts)) AS wl_diff,
         ABS(discharge_m3s - LAG(discharge_m3s) OVER (ORDER BY ts)) AS q_diff
       FROM filtered
     )
     SELECT
-      MIN(f.water_level_cm)::float AS wl_min,
-      MAX(f.water_level_cm)::float AS wl_max,
-      ROUND(AVG(f.water_level_cm)::numeric, 1)::float AS wl_avg,
-      (PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY f.water_level_cm))::float AS wl_median,
-      MAX(c.wl_diff)::float AS wl_max_change,
-      MIN(f.discharge_m3s)::float AS q_min,
-      MAX(f.discharge_m3s)::float AS q_max,
-      ROUND(AVG(f.discharge_m3s)::numeric, 2)::float AS q_avg,
-      (PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY f.discharge_m3s))::float AS q_median,
-      MAX(c.q_diff)::float AS q_max_change
-    FROM filtered f, changes c`;
+      (SELECT MIN(wl) FROM changes)::float AS wl_min,
+      (SELECT MAX(wl) FROM changes)::float AS wl_max,
+      (SELECT ROUND(AVG(wl)::numeric, 1) FROM changes)::float AS wl_avg,
+      (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY wl) FROM changes)::float AS wl_median,
+      (SELECT MAX(wl_diff) FROM changes)::float AS wl_max_change,
+      (SELECT MIN(q) FROM changes)::float AS q_min,
+      (SELECT MAX(q) FROM changes)::float AS q_max,
+      (SELECT ROUND(AVG(q)::numeric, 2) FROM changes)::float AS q_avg,
+      (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY q) FROM changes)::float AS q_median,
+      (SELECT MAX(q_diff) FROM changes)::float AS q_max_change`;
   return parseStatsRow(rows[0]);
 };
 
@@ -312,22 +348,23 @@ export const fetchRiverMeasurementStats = async (
     ),
     changes AS (
       SELECT
+        water_level_cm AS wl,
+        discharge_m3s AS q,
         ABS(water_level_cm - LAG(water_level_cm) OVER (ORDER BY bucket)) AS wl_diff,
         ABS(discharge_m3s - LAG(discharge_m3s) OVER (ORDER BY bucket)) AS q_diff
       FROM bucketed
     )
     SELECT
-      MIN(b.water_level_cm)::float AS wl_min,
-      MAX(b.water_level_cm)::float AS wl_max,
-      ROUND(AVG(b.water_level_cm)::numeric, 1)::float AS wl_avg,
-      (PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY b.water_level_cm))::float AS wl_median,
-      MAX(c.wl_diff)::float AS wl_max_change,
-      MIN(b.discharge_m3s)::float AS q_min,
-      MAX(b.discharge_m3s)::float AS q_max,
-      ROUND(AVG(b.discharge_m3s)::numeric, 2)::float AS q_avg,
-      (PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY b.discharge_m3s))::float AS q_median,
-      MAX(c.q_diff)::float AS q_max_change
-    FROM bucketed b, changes c`;
+      (SELECT MIN(wl) FROM changes)::float AS wl_min,
+      (SELECT MAX(wl) FROM changes)::float AS wl_max,
+      (SELECT ROUND(AVG(wl)::numeric, 1) FROM changes)::float AS wl_avg,
+      (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY wl) FROM changes)::float AS wl_median,
+      (SELECT MAX(wl_diff) FROM changes)::float AS wl_max_change,
+      (SELECT MIN(q) FROM changes)::float AS q_min,
+      (SELECT MAX(q) FROM changes)::float AS q_max,
+      (SELECT ROUND(AVG(q)::numeric, 2) FROM changes)::float AS q_avg,
+      (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY q) FROM changes)::float AS q_median,
+      (SELECT MAX(q_diff) FROM changes)::float AS q_max_change`;
   return parseStatsRow(rows[0]);
 };
 

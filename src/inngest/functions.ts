@@ -60,23 +60,61 @@ export const historicalIngest = inngest.createFunction(
 
     const pending = await step.run('find-pending', async () => {
       const db = await connectDb();
+      const currentYear = new Date().getFullYear();
 
-      // Zjistíme, které station+year kombinace už mají data
-      const existing = await db`
-        SELECT s.id_external AS ext_id, EXTRACT(YEAR FROM m.ts)::INT AS yr
+      // Pro každý station+year spočítáme kolik dní máme vs kolik bychom měli mít
+      const existing = await db<
+        { ext_id: string; yr: number; day_count: number }[]
+      >`
+        SELECT
+          s.id_external AS ext_id,
+          EXTRACT(YEAR FROM m.ts)::INT AS yr,
+          COUNT(DISTINCT m.ts::DATE)::INT AS day_count
         FROM measurement m
         JOIN station s ON s.id = m.station_id
         WHERE m.source = 'chmi_daily'
         GROUP BY s.id_external, EXTRACT(YEAR FROM m.ts)
       `;
 
-      const doneSet = new Set(existing.map((r) => `${r.ext_id}_${r.yr}`));
+      const dataMap = new Map<string, number>();
+      for (const r of existing) {
+        dataMap.set(`${r.ext_id}_${r.yr}`, r.day_count);
+      }
 
-      const pendingFiles = allFiles.filter(
-        (f) => !doneSet.has(`${f.stationExtId}_${f.year}`),
-      );
+      // Rozdělíme soubory do dvou skupin:
+      // 1) gap-fill: rok s neúplnými daty nebo aktuální rok (data stále přibývají)
+      // 2) backfill: rok bez jakýchkoli dat
+      const gapFill: typeof allFiles = [];
+      const backfill: typeof allFiles = [];
 
-      return pendingFiles.slice(0, HISTORICAL_BATCH_SIZE);
+      for (const f of allFiles) {
+        const key = `${f.stationExtId}_${f.year}`;
+        const dayCount = dataMap.get(key);
+
+        if (dayCount === undefined) {
+          // Žádná data — čistý backfill
+          backfill.push(f);
+        } else if (f.year === currentYear) {
+          // Aktuální rok — vždy aktualizovat (data přibývají)
+          gapFill.push(f);
+        } else {
+          // Historický rok — kontrola úplnosti (365/366 dní)
+          const daysInYear = f.year % 4 === 0 && (f.year % 100 !== 0 || f.year % 400 === 0)
+            ? 366
+            : 365;
+          // Tolerujeme malou odchylku (některé stanice neměří každý den)
+          if (dayCount < daysInYear * 0.9) {
+            gapFill.push(f);
+          }
+          // Jinak kompletní — přeskočíme
+        }
+      }
+
+      // Priorita: nejdřív mezery (novější roky napřed), pak backfill
+      gapFill.sort((a, b) => b.year - a.year);
+      backfill.sort((a, b) => b.year - a.year);
+
+      return [...gapFill, ...backfill].slice(0, HISTORICAL_BATCH_SIZE);
     });
 
     if (pending.length === 0) {

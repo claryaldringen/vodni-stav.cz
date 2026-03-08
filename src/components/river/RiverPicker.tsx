@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import TextField from '@mui/material/TextField';
 import Grid from '@mui/material/Grid';
@@ -11,6 +11,7 @@ import Typography from '@mui/material/Typography';
 import InputAdornment from '@mui/material/InputAdornment';
 import SearchIcon from '@mui/icons-material/Search';
 import { formatDischarge } from '@/src/lib/format';
+import { slugify } from '@/src/lib/slug';
 import type { River } from '@/src/lib/types';
 
 interface RiverPickerProps {
@@ -19,15 +20,22 @@ interface RiverPickerProps {
 
 const RiverPicker = ({ rivers }: RiverPickerProps) => {
   const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
 
-  const lowerQuery = query.toLowerCase();
-  const filtered = query
-    ? rivers.filter(
-        (r) =>
-          r.name.toLowerCase().includes(lowerQuery) ||
-          r.basin_name?.toLowerCase().includes(lowerQuery),
-      )
-    : rivers;
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query), 200);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  const filtered = useMemo(() => {
+    if (!debouncedQuery) return rivers;
+    const lower = debouncedQuery.toLowerCase();
+    return rivers.filter(
+      (r) =>
+        r.name.toLowerCase().includes(lower) ||
+        r.basin_name?.toLowerCase().includes(lower),
+    );
+  }, [debouncedQuery, rivers]);
 
   return (
     <>
@@ -57,7 +65,7 @@ const RiverPicker = ({ rivers }: RiverPickerProps) => {
           {filtered.map((r) => (
             <Grid key={r.id} size={{ xs: 12, sm: 6, md: 4 }}>
               <Card variant="outlined">
-                <CardActionArea component={Link} href={`/toky/${r.id}`}>
+                <CardActionArea component={Link} href={`/toky/${slugify(r.name)}`}>
                   <CardContent>
                     <Typography variant="subtitle1" fontWeight={600}>
                       {r.name}

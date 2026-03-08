@@ -96,12 +96,22 @@ const RiverMeasurementPanel = ({
   useEffect(() => () => abortRef.current?.abort(), []);
 
   // Auto-refresh every 10 minutes (ČHMÚ update interval) — only for relative periods
+  // Skips refresh when the tab is not visible (Page Visibility API)
   useEffect(() => {
     if (customRange) return;
-    const interval = setInterval(() => {
+    const refresh = () => {
+      if (document.hidden) return;
       loadData(riverId, granularity, period, null);
-    }, 10 * 60 * 1000);
-    return () => clearInterval(interval);
+    };
+    const interval = setInterval(refresh, 10 * 60 * 1000);
+    const onVisibilityChange = () => {
+      if (!document.hidden) refresh();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [riverId, granularity, period, customRange, loadData]);
 
   const handleGranularityChange = (g: Granularity) => {

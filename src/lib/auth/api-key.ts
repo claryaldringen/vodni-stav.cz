@@ -127,10 +127,14 @@ export const listApiKeys = async (userId: string): Promise<ApiKeyInfo[]> => {
 
 export const revokeApiKey = async (keyId: number, userId: string): Promise<boolean> => {
   const sql = await connectDb();
-  const rows = await sql`
+  const rows = await sql<{ key_hash: string }[]>`
     UPDATE api_key SET is_active = false
     WHERE id = ${keyId} AND user_id = ${userId}
-    RETURNING id
+    RETURNING key_hash
   `;
+  if (rows.length > 0) {
+    // Invalidate the validation cache so the revoked key is rejected immediately
+    validationCache.delete(rows[0].key_hash);
+  }
   return rows.length > 0;
 };

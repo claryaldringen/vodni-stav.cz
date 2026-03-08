@@ -55,6 +55,6 @@ export const GET = async (
       stats,
       ...(dateRange && { from: dateRange.from, to: dateRange.to }),
     },
-    { headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=300' } },
+    { headers: { 'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=1800' } },
   );
 };

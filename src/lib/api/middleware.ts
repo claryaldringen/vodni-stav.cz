@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { validateApiKey, resolveApiKeyMode } from '../auth/api-key';
 import { apiError } from './errors';
@@ -39,7 +40,7 @@ export const requireApiKey = async (
   const mode = await resolveApiKeyMode(result.userId);
 
   if (mode === 'test') {
-    const keyHash = key.slice(0, 12);
+    const keyHash = crypto.createHash('sha256').update(key).digest('hex').slice(0, 16);
     const { allowed, remaining } = checkRateLimit(keyHash);
     if (!allowed) {
       const res = withCors(

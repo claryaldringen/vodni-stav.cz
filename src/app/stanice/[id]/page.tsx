@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Typography from '@mui/material/Typography';
@@ -15,13 +16,15 @@ import ErrorBoundary from '@/src/components/ErrorBoundary';
 import MeasurementPanel from '@/src/components/measurement/MeasurementPanel';
 import { DynamicStationMap } from '@/src/components/map/DynamicMap';
 
+const getCachedStation = cache((slug: string) => fetchStationBySlug(slug));
+
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
 export const generateMetadata = async ({ params }: PageProps): Promise<Metadata> => {
   const { id } = await params;
-  const station = await fetchStationBySlug(id);
+  const station = await getCachedStation(id);
   if (!station) return {};
 
   const title = station.river_name
@@ -49,11 +52,13 @@ export const generateMetadata = async ({ params }: PageProps): Promise<Metadata>
 const StationPage = async ({ params }: PageProps) => {
   const { id } = await params;
 
-  const station = await fetchStationBySlug(id);
+  const station = await getCachedStation(id);
   if (!station) notFound();
 
   // Fire-and-forget — neblokuje render, data se zobrazí z DB
-  connectDb().then((db) => ingestStationIfStale(db, station.id)).catch(() => {});
+  connectDb()
+    .then((db) => ingestStationIfStale(db, station.id))
+    .catch((e) => console.error('[ingestStationIfStale]', e));
 
   const [measurements, stats] = await Promise.all([
     fetchMeasurements(station.id, DEFAULT_PERIOD),

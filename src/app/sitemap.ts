@@ -16,8 +16,11 @@ const sitemap = async (): Promise<MetadataRoute.Sitemap> => {
   const staticPages: MetadataRoute.Sitemap = [
     { url: BASE_URL, changeFrequency: 'daily', priority: 1.0 },
     { url: `${BASE_URL}/stanice`, changeFrequency: 'daily', priority: 0.8 },
-    { url: `${BASE_URL}/cenik`, changeFrequency: 'monthly', priority: 0.3 },
-    { url: `${BASE_URL}/dokumentace`, changeFrequency: 'monthly', priority: 0.3 },
+    { url: `${BASE_URL}/cenik`, changeFrequency: 'monthly', priority: 0.5 },
+    { url: `${BASE_URL}/dokumentace`, changeFrequency: 'monthly', priority: 0.5 },
+    { url: `${BASE_URL}/o-projektu`, changeFrequency: 'monthly', priority: 0.5 },
+    { url: `${BASE_URL}/kontakt`, changeFrequency: 'monthly', priority: 0.5 },
+    { url: `${BASE_URL}/zasady-ochrany-soukromi`, changeFrequency: 'yearly', priority: 0.4 },
   ];
 
   const stationPages: MetadataRoute.Sitemap = stations.map((s) => ({
@@ -27,7 +30,7 @@ const sitemap = async (): Promise<MetadataRoute.Sitemap> => {
   }));
 
   const riverPages: MetadataRoute.Sitemap = rivers.map((r) => ({
-    url: `${BASE_URL}/toky/${r.id}`,
+    url: `${BASE_URL}/toky/${slugify(r.name)}`,
     changeFrequency: 'hourly',
     priority: 0.6,
   }));

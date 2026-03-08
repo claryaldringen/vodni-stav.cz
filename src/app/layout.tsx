@@ -31,6 +31,7 @@ export const metadata: Metadata = {
     title: 'Vodní stav — aktuální hladiny a průtoky řek v ČR',
     description:
       'Aktuální vodní stavy a průtoky na řekách v České republice. Data z ČHMÚ aktualizovaná denně.',
+    url: 'https://vodnistav.cz',
     locale: 'cs_CZ',
     type: 'website',
     siteName: 'Vodní stav',

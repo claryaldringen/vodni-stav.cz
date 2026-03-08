@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Typography from '@mui/material/Typography';
@@ -9,7 +10,7 @@ import CardContent from '@mui/material/CardContent';
 import Button from '@mui/material/Button';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import {
-  fetchRiverById,
+  fetchRiverBySlug,
   fetchRiverMeasurements,
   fetchRiverMeasurementStats,
   fetchStationsByRiverId,
@@ -20,16 +21,16 @@ import ErrorBoundary from '@/src/components/ErrorBoundary';
 import RiverMeasurementPanel from '@/src/components/river/RiverMeasurementPanel';
 import { DynamicRiverMap } from '@/src/components/map/DynamicMap';
 
+const getCachedRiver = cache((slug: string) => fetchRiverBySlug(slug));
+
 interface PageProps {
-  params: Promise<{ id: string }>;
+  params: Promise<{ slug: string }>;
 }
 
 export const generateMetadata = async ({ params }: PageProps): Promise<Metadata> => {
-  const { id } = await params;
-  const riverId = Number(id);
-  if (Number.isNaN(riverId)) return {};
+  const { slug } = await params;
 
-  const river = await fetchRiverById(riverId);
+  const river = await getCachedRiver(slug);
   if (!river) return {};
 
   const title = `${river.name} — průtoky a vodní stavy`;
@@ -39,7 +40,7 @@ export const generateMetadata = async ({ params }: PageProps): Promise<Metadata>
     title,
     description,
     alternates: {
-      canonical: `https://vodnistav.cz/toky/${id}`,
+      canonical: `https://vodnistav.cz/toky/${slug}`,
     },
     openGraph: {
       title,
@@ -50,19 +51,17 @@ export const generateMetadata = async ({ params }: PageProps): Promise<Metadata>
 };
 
 const RiverPage = async ({ params }: PageProps) => {
-  const { id } = await params;
-  const riverId = Number(id);
-  if (Number.isNaN(riverId)) notFound();
+  const { slug } = await params;
 
-  const river = await fetchRiverById(riverId);
+  const river = await getCachedRiver(slug);
   if (!river) notFound();
 
   const initialGranularity = DEFAULT_GRANULARITY;
   const initialPeriod = getDefaultPeriod(initialGranularity);
   const [measurements, stations, stats] = await Promise.all([
-    fetchRiverMeasurements(riverId, initialGranularity, initialPeriod),
-    fetchStationsByRiverId(riverId),
-    fetchRiverMeasurementStats(riverId, initialGranularity, initialPeriod),
+    fetchRiverMeasurements(river.id, initialGranularity, initialPeriod),
+    fetchStationsByRiverId(river.id),
+    fetchRiverMeasurementStats(river.id, initialGranularity, initialPeriod),
   ]);
   return (
     <>

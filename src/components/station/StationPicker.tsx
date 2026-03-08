@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import TextField from '@mui/material/TextField';
 import Grid from '@mui/material/Grid';
@@ -19,16 +19,23 @@ interface StationPickerProps {
 
 const StationPicker = ({ stations }: StationPickerProps) => {
   const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
 
-  const lowerQuery = query.toLowerCase();
-  const filtered = query
-    ? stations.filter(
-        (s) =>
-          s.name.toLowerCase().includes(lowerQuery) ||
-          s.river_name?.toLowerCase().includes(lowerQuery) ||
-          s.basin_name?.toLowerCase().includes(lowerQuery),
-      )
-    : stations;
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query), 200);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  const filtered = useMemo(() => {
+    if (!debouncedQuery) return stations;
+    const lower = debouncedQuery.toLowerCase();
+    return stations.filter(
+      (s) =>
+        s.name.toLowerCase().includes(lower) ||
+        s.river_name?.toLowerCase().includes(lower) ||
+        s.basin_name?.toLowerCase().includes(lower),
+    );
+  }, [debouncedQuery, stations]);
 
   return (
     <>

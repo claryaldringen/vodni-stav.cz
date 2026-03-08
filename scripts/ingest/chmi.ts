@@ -293,48 +293,52 @@ export const ingestHistoricalBatch = async (
   const errors: string[] = [];
   let totalUpserted = 0;
 
-  for (const file of files) {
-    const stationId = stationIdByExt.get(file.stationExtId);
-    if (stationId == null) {
-      errors.push(`No station in DB for ${file.stationExtId}`);
-      continue;
-    }
-
-    try {
-      const url = `${baseUrl}${file.filename}`;
-      const res = await fetchWithTimeout(url, 15000);
-      if (!res.ok) {
-        errors.push(`Fetch ${file.filename}: ${res.status}`);
+  await db.begin(async (tx) => {
+    // TransactionSql supports tagged templates at runtime; cast to Db for TS compatibility
+    const sql = tx as unknown as Db;
+    for (const file of files) {
+      const stationId = stationIdByExt.get(file.stationExtId);
+      if (stationId == null) {
+        errors.push(`No station in DB for ${file.stationExtId}`);
         continue;
       }
 
-      const json = await res.json();
-      const points = mergeHistoricalTimeseries(json);
-      if (points.length === 0) continue;
+      try {
+        const url = `${baseUrl}${file.filename}`;
+        const res = await fetchWithTimeout(url, 15000);
+        if (!res.ok) {
+          errors.push(`Fetch ${file.filename}: ${res.status}`);
+          continue;
+        }
 
-      const result = await db`
-        INSERT INTO measurement (station_id, ts, water_level_cm, discharge_m3s, source)
-        SELECT x.station_id, x.ts, x.water_level_cm, x.discharge_m3s, x.source
-        FROM UNNEST(
-          ${points.map(() => stationId)}::BIGINT[],
-          ${points.map((p) => p.ts)}::TIMESTAMPTZ[],
-          ${points.map((p) => p.water_level_cm ?? null)}::NUMERIC[],
-          ${points.map((p) => p.discharge_m3s ?? null)}::NUMERIC[],
-          ${points.map(() => 'chmi_daily')}::TEXT[]
-        ) AS x(station_id, ts, water_level_cm, discharge_m3s, source)
-        ON CONFLICT (ts, station_id) DO UPDATE SET
-          water_level_cm = COALESCE(EXCLUDED.water_level_cm, measurement.water_level_cm),
-          discharge_m3s  = COALESCE(EXCLUDED.discharge_m3s,  measurement.discharge_m3s),
-          source         = EXCLUDED.source
-        WHERE
-          EXCLUDED.water_level_cm IS DISTINCT FROM measurement.water_level_cm
-          OR EXCLUDED.discharge_m3s IS DISTINCT FROM measurement.discharge_m3s
-      `;
-      totalUpserted += result.count;
-    } catch (e: unknown) {
-      errors.push(`${file.filename}: ${e instanceof Error ? e.message : String(e)}`);
+        const json = await res.json();
+        const points = mergeHistoricalTimeseries(json);
+        if (points.length === 0) continue;
+
+        const result = await sql`
+          INSERT INTO measurement (station_id, ts, water_level_cm, discharge_m3s, source)
+          SELECT x.station_id, x.ts, x.water_level_cm, x.discharge_m3s, x.source
+          FROM UNNEST(
+            ${points.map(() => stationId)}::INTEGER[],
+            ${points.map((p) => p.ts)}::TIMESTAMPTZ[],
+            ${points.map((p) => p.water_level_cm ?? null)}::NUMERIC[],
+            ${points.map((p) => p.discharge_m3s ?? null)}::NUMERIC[],
+            ${points.map(() => 'chmi_daily')}::TEXT[]
+          ) AS x(station_id, ts, water_level_cm, discharge_m3s, source)
+          ON CONFLICT (ts, station_id) DO UPDATE SET
+            water_level_cm = COALESCE(EXCLUDED.water_level_cm, measurement.water_level_cm),
+            discharge_m3s  = COALESCE(EXCLUDED.discharge_m3s,  measurement.discharge_m3s),
+            source         = EXCLUDED.source
+          WHERE
+            EXCLUDED.water_level_cm IS DISTINCT FROM measurement.water_level_cm
+            OR EXCLUDED.discharge_m3s IS DISTINCT FROM measurement.discharge_m3s
+        `;
+        totalUpserted += result.count;
+      } catch (e: unknown) {
+        errors.push(`${file.filename}: ${e instanceof Error ? e.message : String(e)}`);
+      }
     }
-  }
+  });
 
   return { fetched: files.length, upserted: totalUpserted, errors };
 };
@@ -472,7 +476,7 @@ export const ingestNowMeasurements = async (
       x.discharge_m3s,
       x.source
     FROM UNNEST(
-      ${toInsert.map((r) => r.stationId)}::BIGINT[],
+      ${toInsert.map((r) => r.stationId)}::INTEGER[],
       ${toInsert.map((r) => r.ts)}::TIMESTAMPTZ[],
       ${toInsert.map((r) => r.water_level_cm ?? null)}::NUMERIC[],
       ${toInsert.map((r) => r.discharge_m3s ?? null)}::NUMERIC[],
@@ -562,7 +566,7 @@ export const ingestStationIfStale = async (
     SELECT
       x.station_id, x.ts, x.water_level_cm, x.discharge_m3s, x.source
     FROM UNNEST(
-      ${points.map(() => stationId)}::BIGINT[],
+      ${points.map(() => stationId)}::INTEGER[],
       ${points.map((p) => p.ts)}::TIMESTAMPTZ[],
       ${points.map((p) => p.water_level_cm ?? null)}::NUMERIC[],
       ${points.map((p) => p.discharge_m3s ?? null)}::NUMERIC[],

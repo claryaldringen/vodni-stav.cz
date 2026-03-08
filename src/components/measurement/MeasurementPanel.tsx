@@ -87,12 +87,22 @@ const MeasurementPanel = ({
   useEffect(() => () => abortRef.current?.abort(), []);
 
   // Auto-refresh every 10 minutes (ČHMÚ update interval) — only for relative periods
+  // Skips refresh when the tab is hidden (saves battery/bandwidth) and fetches on tab re-focus
   useEffect(() => {
     if (customRange) return;
-    const interval = setInterval(() => {
+    const refresh = () => {
+      if (document.hidden) return;
       loadData(stationId, period, null);
-    }, 10 * 60 * 1000);
-    return () => clearInterval(interval);
+    };
+    const interval = setInterval(refresh, 10 * 60 * 1000);
+    const onVisibilityChange = () => {
+      if (!document.hidden) refresh();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [stationId, period, customRange, loadData]);
 
   const handlePeriodChange = (p: Period) => {

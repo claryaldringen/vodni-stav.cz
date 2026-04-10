@@ -1,0 +1,3 @@
+vodnistav.cz {
+    reverse_proxy localhost:3000
+}

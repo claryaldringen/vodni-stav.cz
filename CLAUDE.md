@@ -20,7 +20,7 @@ Tento soubor poskytuje kontext pro Claude Code (claude.ai/code) při práci s t�
 
 ## Architektura
 
-**Stack:** Next.js 16 (App Router), React 19, PostgreSQL (Neon), raw SQL přes `postgres` (Postgres.js), Material UI (MUI), Recharts, deploy na Vercelu.
+**Stack:** Next.js 16 (App Router), React 19, PostgreSQL, raw SQL přes `postgres` (Postgres.js), Material UI (MUI), Recharts, deploy na Hetzner VPS (standalone build + Caddy reverse proxy).
 
 **Bez Tailwind** — UI je čistě přes MUI (`sx` prop, MUI komponenty). Nepoužívat Tailwind utility třídy.
 
@@ -34,20 +34,28 @@ Tento soubor poskytuje kontext pro Claude Code (claude.ai/code) při práci s t�
 ČHMÚ open data API → scripts/ingest/chmi.ts → PostgreSQL → Next.js frontend
 ```
 
-Ingest běží denně ve 23:55 UTC přes Vercel cron (`GET /api/cron/ingest`, autentizace Bearer tokenem `CRON_SECRET`). Dvě fáze:
+Ingest běží denně ve 23:55 UTC přes systemd timer (`vodnistav-daily-ingest.timer`). Dvě fáze:
 
 1. **Discovery** — stáhne metadata stanic z ČHMÚ meta1.json, upsertne povodí/řeky/stanice
 2. **Ingest měření** — paralelní fetch JSON souborů per stanice, sloučení H (vodní stav cm) a Q (průtok m³/s) časových řad, batch upsert s řešením konfliktů
 
 ### Klíčové soubory
 
-- `src/app/api/cron/ingest/route.ts` — cron endpoint (GET, Bearer auth, max 60s)
 - `scripts/ingest/chmi.ts` — logika stahování a parsování dat z ČHMÚ
 - `scripts/ingest/extractors.ts` — parsování meta1 JSONu
 - `scripts/ingest/utils.ts` — DB helpery (audit ingest runů)
+- `scripts/cron/daily-ingest.ts` — standalone denní ingest (systemd timer)
+- `scripts/cron/historical-ingest.ts` — historický backfill (systemd timer)
+- `scripts/cron/subscription-notifier.ts` — emailové notifikace (systemd timer)
 - `src/lib/db.ts` — singleton PostgreSQL pool
 - `migrations/001_init.sql` — schéma: basin, river, station, measurement, ingest_run
-- `vercel.json` — konfigurace cron schedule
+
+### Deploy (Hetzner VPS)
+
+- `deploy/vodnistav.service` — systemd service pro Next.js aplikaci
+- `deploy/vodnistav-*.timer` — systemd timery pro cron joby
+- `deploy/Caddyfile` — reverse proxy s automatickým HTTPS
+- `.github/workflows/deploy.yml` — CI/CD pipeline (lint, typecheck, test → SSH deploy)
 
 ### Databázové schéma
 
@@ -63,7 +71,7 @@ Hlavní tabulky: `basin → river → station → measurement` (hierarchické). 
 
 ## Lokální databáze
 
-Dev prostředí používá lokální PostgreSQL 17 (`postgres://martinzadrazil@localhost:5432/hydro`). Neon se používá pouze na produkci (Vercel).
+Dev prostředí používá lokální PostgreSQL 17 (`postgres://martinzadrazil@localhost:5432/hydro`). Produkce běží na PostgreSQL na Hetzner VPS.
 
 **Migrace na lokální DB lze pouštět bez ptaní** — `yarn migrate` nebo `DATABASE_URL="postgres://martinzadrazil@localhost:5432/hydro" yarn migrate`.
 

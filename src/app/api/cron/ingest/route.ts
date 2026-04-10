@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
-import { inngest } from '@/src/inngest/client';
+import { connectDb } from '@/src/lib/db';
+import { ingestNowMeasurements, runDiscoverIfNeeded } from '@/scripts/ingest/chmi';
+import { recordRunFinish, recordRunStart } from '@/scripts/ingest/utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -26,7 +28,18 @@ export const GET = async (req: Request) => {
     return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  await inngest.send({ name: 'ingest/manual' });
+  const db = await connectDb();
 
-  return NextResponse.json({ ok: true, triggered: true });
+  await runDiscoverIfNeeded(db);
+
+  const runId = await recordRunStart(db, 'ingest');
+  try {
+    const result = await ingestNowMeasurements(db);
+    await recordRunFinish(db, runId, 'ok', result);
+    return NextResponse.json({ ok: true, result });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await recordRunFinish(db, runId, 'error', { error: msg });
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+  }
 };

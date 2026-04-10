@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "ingest": "tsx scripts/ingest/index.ts",
     "cron:daily": "tsx scripts/cron/daily-ingest.ts",
+    "cron:historical": "tsx scripts/cron/historical-ingest.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "inngest:dev": "npx inngest-cli@latest dev"

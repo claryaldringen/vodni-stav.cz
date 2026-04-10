@@ -1,0 +1,12 @@
+[Unit]
+Description=vodnistav.cz subscription notifier
+After=network.target postgresql.service
+
+[Service]
+Type=oneshot
+User=vodnistav
+WorkingDirectory=/opt/vodnistav
+ExecStart=/usr/bin/npx tsx scripts/cron/subscription-notifier.ts
+EnvironmentFile=/opt/vodnistav/.env
+Environment=NODE_ENV=production
+TimeoutStartSec=300

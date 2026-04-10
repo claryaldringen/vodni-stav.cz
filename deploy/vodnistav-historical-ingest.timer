@@ -1,0 +1,9 @@
+[Unit]
+Description=Historical ingest from CHMI (04:00 UTC)
+
+[Timer]
+OnCalendar=*-*-* 04:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,12 @@
+[Unit]
+Description=vodnistav.cz daily ingest
+After=network.target postgresql.service
+
+[Service]
+Type=oneshot
+User=vodnistav
+WorkingDirectory=/opt/vodnistav
+ExecStart=/usr/bin/npx tsx scripts/cron/daily-ingest.ts
+EnvironmentFile=/opt/vodnistav/.env
+Environment=NODE_ENV=production
+TimeoutStartSec=600

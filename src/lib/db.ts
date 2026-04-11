@@ -19,6 +19,7 @@ export const connectDb = async (): Promise<Db> => {
     global.__sql = postgres(url, {
       max: 20,
       idle_timeout: 60,
+      max_lifetime: 300,
       connect_timeout: 10,
     });
   }

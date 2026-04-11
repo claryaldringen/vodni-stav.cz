@@ -6,13 +6,11 @@ After=network.target postgresql.service
 Type=simple
 User=vodnistav
 WorkingDirectory=/opt/vodnistav
-ExecStart=/usr/bin/node .next/standalone/server.js
+ExecStart=/usr/bin/node node_modules/.bin/next start -p 3004
 Restart=always
 RestartSec=5
 EnvironmentFile=/opt/vodnistav/.env
 Environment=NODE_ENV=production
-Environment=PORT=3004
-Environment=HOSTNAME=0.0.0.0
 
 [Install]
 WantedBy=multi-user.target

@@ -35,4 +35,6 @@ jobs:
             git pull origin main
             yarn install --immutable
             yarn build
+            cp -r .next/static .next/standalone/.next/static
+            cp -r public .next/standalone/public
             sudo systemctl restart vodnistav

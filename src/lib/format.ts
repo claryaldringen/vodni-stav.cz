@@ -31,3 +31,8 @@ export const formatWaterLevel = (cm: number | null): string =>
 
 export const formatDischarge = (m3s: number | null): string =>
   m3s !== null ? `${formatNumber(m3s, 2)} m³/s` : '–';
+
+export const formatDistance = (km: number): string => {
+  if (km < 1) return `${Math.round(km * 100) * 10} m`;
+  return `${formatNumber(km, km < 10 ? 1 : 0)} km`;
+};

@@ -7,6 +7,7 @@ import type {
   Granularity,
   Measurement,
   MeasurementStats,
+  NearestStationRow,
   Period,
   River,
   RiverPeriod,
@@ -72,6 +73,43 @@ export const fetchStationBySlug = async (slug: string): Promise<Station | null> 
   const stationId = map.get(slug);
   if (stationId === undefined) return null;
   return fetchStationById(stationId);
+};
+
+export const fetchNearestStation = async (
+  lat: number,
+  lon: number,
+  requireRiver: boolean,
+): Promise<NearestStationRow | null> => {
+  const sql = await connectDb();
+  const [row] = await sql<NearestStationRow[]>`
+    SELECT s.id, s.name, r.name AS river_name, s.meta,
+           6371 * 2 * ASIN(SQRT(
+             POWER(SIN(RADIANS(s.lat - ${lat}::float8) / 2), 2) +
+             COS(RADIANS(${lat}::float8)) * COS(RADIANS(s.lat)) *
+             POWER(SIN(RADIANS(s.lon - ${lon}::float8) / 2), 2)
+           )) AS distance_km
+    FROM station s
+    LEFT JOIN river r ON r.id = s.river_id
+    WHERE s.is_active = true
+      AND s.name IS DISTINCT FROM s.id_external
+      AND s.lat IS NOT NULL
+      AND s.lon IS NOT NULL
+      ${requireRiver ? sql`AND s.river_id IS NOT NULL` : sql``}
+    ORDER BY distance_km
+    LIMIT 1`;
+  return row ?? null;
+};
+
+export const fetchLatestMeasurement = async (stationId: number): Promise<Measurement | null> => {
+  const sql = await connectDb();
+  const [row] = await sql<Measurement[]>`
+    SELECT ts, water_level_cm::float AS water_level_cm, discharge_m3s::float AS discharge_m3s
+    FROM measurement
+    WHERE station_id = ${stationId}
+      AND (water_level_cm IS NOT NULL OR discharge_m3s IS NOT NULL)
+    ORDER BY ts DESC
+    LIMIT 1`;
+  return row ?? null;
 };
 
 export const fetchStationsByRiverId = async (riverId: number): Promise<Station[]> => {

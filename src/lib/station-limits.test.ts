@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractStationLimits } from './station-limits';
+import { extractStationLimits, getStationStage } from './station-limits';
 
 // Řádek ze skutečného meta1.json ČHMÚ (Špindlerův Mlýn)
 const spindleruvMlyn = {
@@ -67,5 +67,59 @@ describe('extractStationLimits', () => {
     expect(extractStationLimits({})).toEqual([]);
     // dvojitě zakódovaná meta (JSON string místo objektu)
     expect(extractStationLimits(JSON.stringify(spindleruvMlyn))).toEqual([]);
+  });
+});
+
+describe('getStationStage', () => {
+  const at = (water_level_cm: number | null, discharge_m3s: number | null = null) => ({
+    water_level_cm,
+    discharge_m3s,
+  });
+
+  it('returns the highest reached flood stage by water level', () => {
+    expect(getStationStage(spindleruvMlyn, at(300))).toEqual({
+      key: 'spa4',
+      label: 'Extrémní povodeň',
+    });
+    expect(getStationStage(spindleruvMlyn, at(210))).toEqual({
+      key: 'spa2',
+      label: '2. SPA – pohotovost',
+    });
+    expect(getStationStage(spindleruvMlyn, at(165))).toEqual({
+      key: 'spa1',
+      label: '1. SPA – bdělost',
+    });
+  });
+
+  it('reports drought at or below the drought limit', () => {
+    expect(getStationStage(spindleruvMlyn, at(90))).toEqual({ key: 'drought', label: 'Sucho' });
+  });
+
+  it('reports a normal stage between drought and the first flood stage', () => {
+    expect(getStationStage(spindleruvMlyn, at(120))).toEqual({
+      key: 'normal',
+      label: 'Běžný stav',
+    });
+  });
+
+  it('uses discharge when flood stages are defined by discharge', () => {
+    const byDischarge = { ...spindleruvMlyn, SPA_TYP: 'Q' };
+    expect(getStationStage(byDischarge, at(120, 40))).toEqual({
+      key: 'spa2',
+      label: '2. SPA – pohotovost',
+    });
+  });
+
+  it('falls back to the other quantity when the preferred one is not measured', () => {
+    expect(getStationStage(spindleruvMlyn, at(null, 20))).toEqual({
+      key: 'spa1',
+      label: '1. SPA – bdělost',
+    });
+  });
+
+  it('returns null without limits or measurement', () => {
+    expect(getStationStage({}, at(120))).toBeNull();
+    expect(getStationStage(null, at(120))).toBeNull();
+    expect(getStationStage(spindleruvMlyn, at(null))).toBeNull();
   });
 });

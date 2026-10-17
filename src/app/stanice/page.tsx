@@ -3,6 +3,7 @@ import Typography from '@mui/material/Typography';
 import { unstable_cache } from 'next/cache';
 import { fetchStations } from '@/src/lib/queries';
 import StationPicker from '@/src/components/station/StationPicker';
+import NearestPanel from '@/src/components/nearest/NearestPanel';
 
 export const metadata: Metadata = {
   title: 'Vodní stanice v ČR',
@@ -23,6 +24,7 @@ const StationsPage = async () => {
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         Vyberte měřicí stanici pro zobrazení aktuálních hladin a průtoků.
       </Typography>
+      <NearestPanel kind="station" />
       <StationPicker stations={stations} />
     </>
   );

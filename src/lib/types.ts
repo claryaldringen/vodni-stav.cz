@@ -18,6 +18,24 @@ export interface Measurement {
   discharge_m3s: number | null;
 }
 
+export type NearestKind = 'station' | 'river';
+
+export interface NearestStationRow {
+  id: number;
+  name: string;
+  river_name: string | null;
+  meta: Record<string, unknown> | null;
+  distance_km: number;
+}
+
+export interface NearestResult {
+  distanceKm: number;
+  station: { name: string; href: string };
+  river: { name: string; href: string } | null;
+  latest: Measurement | null;
+  stage: { key: string; label: string } | null;
+}
+
 export type Period = '24h' | '3d' | '7d' | '30d';
 
 export interface River {

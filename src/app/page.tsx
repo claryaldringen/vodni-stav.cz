@@ -3,6 +3,7 @@ import Typography from '@mui/material/Typography';
 import { unstable_cache } from 'next/cache';
 import { fetchRivers } from '@/src/lib/queries';
 import RiverPicker from '@/src/components/river/RiverPicker';
+import NearestPanel from '@/src/components/nearest/NearestPanel';
 
 export const metadata: Metadata = {
   title: 'Toky v ČR — přehled řek a jejich vodních stavů',
@@ -23,6 +24,7 @@ const HomePage = async () => {
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         Vyberte tok pro zobrazení průměrného průtoku a hladiny ze všech stanic.
       </Typography>
+      <NearestPanel kind="river" />
       <RiverPicker rivers={rivers} />
     </>
   );

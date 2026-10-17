@@ -7,9 +7,17 @@ import Grid from '@mui/material/Grid';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Button from '@mui/material/Button';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { fetchStationBySlug, fetchMeasurements, fetchMeasurementStats } from '@/src/lib/queries';
 import { DEFAULT_PERIOD } from '@/src/lib/periods';
+import { formatWaterLevel } from '@/src/lib/format';
+import { extractStationLimits } from '@/src/lib/station-limits';
 import { ingestStationIfStale } from '@/scripts/ingest/chmi';
 import { connectDb } from '@/src/lib/db';
 import ErrorBoundary from '@/src/components/ErrorBoundary';
@@ -64,6 +72,10 @@ const StationPage = async ({ params }: PageProps) => {
     fetchMeasurements(station.id, DEFAULT_PERIOD),
     fetchMeasurementStats(station.id, DEFAULT_PERIOD),
   ]);
+
+  const limits = extractStationLimits(station.meta);
+  const hasWaterLevelLimits = limits.some((limit) => limit.waterLevelCm !== null);
+  const hasDischargeLimits = limits.some((limit) => limit.dischargeM3s !== null);
 
   return (
     <>
@@ -169,23 +181,43 @@ const StationPage = async ({ params }: PageProps) => {
                 </Typography>
               </Grid>
             )}
-            {station.meta &&
-              Object.entries(station.meta)
-                .filter(
-                  ([key]) =>
-                    !['ISFORECAST', 'geometry', 'geometry_fetched_at'].includes(key),
-                )
-                .map(([key, value]) => (
-                  <Grid key={key} size={{ xs: 6, sm: 4 }}>
-                    <Typography variant="caption" color="text.secondary">
-                      {key}
-                    </Typography>
-                    <Typography variant="body2" fontWeight={500}>
-                      {String(value)}
-                    </Typography>
-                  </Grid>
-                ))}
           </Grid>
+
+          {limits.length > 0 && (
+            <Box sx={{ mt: 3 }}>
+              <Typography variant="subtitle2" fontWeight={600} gutterBottom>
+                Limity sucha a povodňové aktivity
+              </Typography>
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Stupeň</TableCell>
+                      {hasWaterLevelLimits && <TableCell align="right">Vodní stav</TableCell>}
+                      {hasDischargeLimits && <TableCell align="right">Průtok</TableCell>}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {limits.map((limit) => (
+                      <TableRow key={limit.label}>
+                        <TableCell>{limit.label}</TableCell>
+                        {hasWaterLevelLimits && (
+                          <TableCell align="right">{formatWaterLevel(limit.waterLevelCm)}</TableCell>
+                        )}
+                        {hasDischargeLimits && (
+                          <TableCell align="right">
+                            {limit.dischargeM3s !== null
+                              ? `${limit.dischargeM3s.toLocaleString('cs-CZ')} m³/s`
+                              : '–'}
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>
+          )}
         </CardContent>
       </Card>
     </>

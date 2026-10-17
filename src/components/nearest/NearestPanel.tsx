@@ -12,7 +12,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Typography from '@mui/material/Typography';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import { roundCoordinate } from '@/src/lib/geo';
+import { getCurrentPositionWithRetry, roundCoordinate } from '@/src/lib/geo';
 import {
   formatDateTime,
   formatDischarge,
@@ -25,26 +25,34 @@ type PanelState =
   | { status: 'idle' }
   | { status: 'loading' }
   | { status: 'done'; nearest: NearestResult | null }
-  | { status: 'error' }
+  | { status: 'error'; message: string }
   | { status: 'hidden' };
 
 const TEXTS: Record<
   NearestKind,
-  { title: string; prompt: string; loading: string; empty: string }
+  { title: string; prompt: string; loading: string; empty: string; fetchError: string }
 > = {
   station: {
     title: 'Nejbližší stanice',
     prompt: 'Podle vaší polohy najdeme nejbližší měřicí stanici.',
     loading: 'Hledám nejbližší stanici…',
     empty: 'Ve vašem okolí (do 100 km) není žádná stanice.',
+    fetchError: 'Nejbližší stanici se nepodařilo načíst.',
   },
   river: {
     title: 'Nejbližší tok',
     prompt: 'Podle vaší polohy najdeme nejbližší tok s měřicí stanicí.',
     loading: 'Hledám nejbližší tok…',
     empty: 'Ve vašem okolí (do 100 km) není žádný sledovaný tok.',
+    fetchError: 'Nejbližší tok se nepodařilo načíst.',
   },
 };
+
+const LOCATION_ERROR =
+  'Zařízení teď nedokáže určit vaši polohu. Zkontrolujte, že máte zapnuté polohové služby, a zkuste to znovu.';
+
+// GeolocationPositionError.PERMISSION_DENIED
+const PERMISSION_DENIED = 1;
 
 const STAGE_COLORS: Record<string, 'success' | 'warning' | 'error'> = {
   normal: 'success',
@@ -63,32 +71,35 @@ const NearestPanel = ({ kind }: NearestPanelProps) => {
   const [state, setState] = useState<PanelState>({ status: 'idle' });
   const texts = TEXTS[kind];
 
-  const locate = useCallback(() => {
+  const locate = useCallback(async () => {
     setState({ status: 'loading' });
-    navigator.geolocation.getCurrentPosition(
-      async ({ coords }) => {
-        try {
-          const params = new URLSearchParams({
-            kind,
-            lat: String(roundCoordinate(coords.latitude)),
-            lon: String(roundCoordinate(coords.longitude)),
-          });
-          const res = await fetch(`/api/nearest?${params}`);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const { nearest } = (await res.json()) as { nearest: NearestResult | null };
-          setState({ status: 'done', nearest });
-        } catch {
-          setState({ status: 'error' });
-        }
-      },
-      (error) => {
-        setState(
-          error.code === error.PERMISSION_DENIED ? { status: 'hidden' } : { status: 'error' },
-        );
-      },
-      { timeout: 10_000, maximumAge: 10 * 60 * 1000 },
-    );
-  }, [kind]);
+
+    let coords: GeolocationCoordinates;
+    try {
+      ({ coords } = await getCurrentPositionWithRetry(navigator.geolocation, {
+        timeout: 10_000,
+        maximumAge: 10 * 60 * 1000,
+      }));
+    } catch (error) {
+      const denied = (error as GeolocationPositionError).code === PERMISSION_DENIED;
+      setState(denied ? { status: 'hidden' } : { status: 'error', message: LOCATION_ERROR });
+      return;
+    }
+
+    try {
+      const params = new URLSearchParams({
+        kind,
+        lat: String(roundCoordinate(coords.latitude)),
+        lon: String(roundCoordinate(coords.longitude)),
+      });
+      const res = await fetch(`/api/nearest?${params}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const { nearest } = (await res.json()) as { nearest: NearestResult | null };
+      setState({ status: 'done', nearest });
+    } catch {
+      setState({ status: 'error', message: texts.fetchError });
+    }
+  }, [kind, texts]);
 
   // Když uživatel polohu už dřív povolil, hledáme rovnou; o povolení se ptáme až po kliknutí.
   useEffect(() => {
@@ -179,7 +190,7 @@ const NearestPanel = ({ kind }: NearestPanelProps) => {
     state.status === 'loading'
       ? texts.loading
       : state.status === 'error'
-        ? 'Polohu se nepodařilo zjistit.'
+        ? state.message
         : state.status === 'done'
           ? texts.empty
           : texts.prompt;

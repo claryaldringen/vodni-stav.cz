@@ -55,7 +55,7 @@ Ingest běží denně ve 23:55 UTC přes systemd timer (`vodnistav-daily-ingest.
 - `deploy/vodnistav.service` — systemd service pro Next.js aplikaci
 - `deploy/vodnistav-*.timer` — systemd timery pro cron joby
 - `deploy/Caddyfile` — reverse proxy s automatickým HTTPS
-- `.github/workflows/deploy.yml` — CI/CD pipeline (lint, typecheck, test → SSH deploy)
+- `.github/workflows/deploy.yml` — CI/CD pipeline (lint, typecheck, test → SSH deploy s migracemi). Secrets: `DEPLOY_HOST`, `DEPLOY_USER` (`vodnistav`), `DEPLOY_SSH_KEY` (vlastní deploy klíč s `restrict` v `authorized_keys`), `DEPLOY_KNOWN_HOSTS`
 
 ### Databázové schéma
 

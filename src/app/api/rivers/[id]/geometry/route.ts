@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import type postgres from 'postgres';
 import { connectDb } from '@/src/lib/db';
 
 interface OverpassElement {
@@ -92,10 +93,10 @@ export const GET = async (_req: Request, { params }: { params: Promise<{ id: str
     const geojson = parseOverpassToGeoJSON(data);
 
     // Cache in DB
+    const cacheEntry = { geometry: geojson, geometry_fetched_at: new Date().toISOString() };
     await sql`
       UPDATE river
-      SET meta = COALESCE(meta, '{}'::jsonb)
-        || jsonb_build_object('geometry', ${JSON.stringify(geojson)}::jsonb, 'geometry_fetched_at', ${new Date().toISOString()})
+      SET meta = COALESCE(meta, '{}'::jsonb) || ${sql.json(cacheEntry as unknown as postgres.JSONValue)}
       WHERE id = ${riverId}
     `;
 

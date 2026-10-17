@@ -173,7 +173,7 @@ export const refreshMetadata = async (
     if (st.riverName) {
       const riverRes = await db`
         INSERT INTO river (id_external, name, basin_id, meta, updated_at)
-        VALUES (NULL, ${st.riverName}, NULL, ${JSON.stringify({})}::jsonb, NOW())
+        VALUES (NULL, ${st.riverName}, NULL, '{}'::jsonb, NOW())
         ON CONFLICT (name) DO UPDATE SET
           updated_at = NOW()
         RETURNING id
@@ -210,7 +210,7 @@ export const refreshMetadata = async (
         ${st.lon},
         ${null},
         TRUE,
-        ${JSON.stringify(st.raw)}::jsonb,
+        ${db.json(st.raw)},
         NOW()
       )
       ON CONFLICT (id_external) DO UPDATE SET

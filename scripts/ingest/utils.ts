@@ -1,3 +1,4 @@
+import type postgres from 'postgres';
 import { Db } from '@/src/lib/db';
 
 export const recordRunStart = async (db: Db, kind: 'discover' | 'ingest' | 'historical') => {
@@ -19,7 +20,7 @@ export const recordRunFinish = async (
     UPDATE ingest_run
     SET finished_at = NOW(),
         status = ${status},
-        details = ${JSON.stringify(details)}
+        details = ${db.json(details as postgres.JSONValue)}
     WHERE id = ${id}
   `;
 };
